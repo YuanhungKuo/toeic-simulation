@@ -10,6 +10,9 @@ import db
 
 st.set_page_config(page_title="TOEIC 模擬考試系統 (雲端體驗版)", page_icon="🎓", layout="wide")
 
+# Google Search Console 擁有權驗證標籤
+st.markdown('<meta name="google-site-verification" content="8bhBxGk7NWw-ObZUN9rr20dLcguo5gQDaK1pbM4LrB8" />', unsafe_allow_html=True)
+
 st.markdown("""
 <style>
 .stButton>button { background-color: #4C51BF; color: white; border-radius: 6px; }
