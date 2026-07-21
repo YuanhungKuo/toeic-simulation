@@ -25,6 +25,26 @@ footer { visibility: hidden; display: none !important; }
 .stAppHeader { visibility: hidden; display: none !important; }
 .stAppToolbar { visibility: hidden; display: none !important; }
 
+/* 徹底隱藏 Streamlit 側邊欄與展開按鈕 */
+[data-testid="stSidebar"] { display: none !important; visibility: hidden !important; }
+[data-testid="stSidebarNav"] { display: none !important; visibility: hidden !important; }
+[data-testid="collapsedControl"] { display: none !important; visibility: hidden !important; }
+button[kind="header"] { display: none !important; visibility: hidden !important; }
+
+/* 自動適應系統 Light / Dark 模式 */
+@media (prefers-color-scheme: light) {
+  .stApp {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .stApp {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+  }
+}
+
 .stButton>button { background-color: #4C51BF; color: white; border-radius: 6px; }
 .stButton>button:hover { background-color: #434190; }
 </style>
@@ -88,11 +108,12 @@ def load_gdrive_json(file_id_or_url: str):
 st.sidebar.title("☁️ 雲端資料庫設定")
 st.sidebar.markdown("請貼上 Google Drive **已公開分享**的 `db.json` 或 `sentences_cache.json` 連結/ID：")
 
-DEFAULT_EXAM_GDRIVE = "https://drive.google.com/drive/folders/12Lc6qJo1HqUvnPysEdvEQc8doNPn-J73?usp=drive_link"
-DEFAULT_VOCAB_GDRIVE = "https://drive.google.com/drive/folders/1TndzUjLXlR4MkAZ1CBX3Ue344zb5Rq8Z?usp=drive_link"
+DEFAULT_CLOUD_ROOT_GDRIVE = "https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link"
+DEFAULT_EXAM_GDRIVE = DEFAULT_CLOUD_ROOT_GDRIVE
+DEFAULT_VOCAB_GDRIVE = DEFAULT_CLOUD_ROOT_GDRIVE
 
-gdrive_db_id = st.sidebar.text_input("📝 模擬試題庫 Google Drive 連結/ID:", value=DEFAULT_EXAM_GDRIVE, key="gdrive_db_id")
-gdrive_vocab_id = st.sidebar.text_input("📚 單字例句庫 Google Drive 連結/ID:", value=DEFAULT_VOCAB_GDRIVE, key="gdrive_vocab_id")
+gdrive_db_id = DEFAULT_EXAM_GDRIVE
+gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
 
 if st.sidebar.button("🔄 立即重新整理雲端資料庫", use_container_width=True):
     st.cache_data.clear()
