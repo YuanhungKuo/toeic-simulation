@@ -151,11 +151,12 @@ with main_tab2:
             en = item.get("sentence_en", "")
             zh = item.get("sentence_zh", "")
             variants = [v for v in item.get("audio_en_variants", []) if os.path.exists(v["path"])]
-            if not variants: continue
-            chosen = random.choice(variants)
+            chosen = random.choice(variants) if variants else None
             
-            with open(chosen["path"], "rb") as f:
-                en_b64 = base64.b64encode(f.read()).decode("ascii")
+            en_b64 = ""
+            if chosen and os.path.exists(chosen["path"]):
+                with open(chosen["path"], "rb") as f:
+                    en_b64 = base64.b64encode(f.read()).decode("ascii")
                 
             zh_b64 = ""
             zh_path = item.get("audio_zh", "")
@@ -180,7 +181,7 @@ with main_tab2:
                 "word_zh": item.get("word_zh", ""),
                 "en": en,
                 "zh": zh,
-                "accent": chosen["label"],
+                "accent": chosen["label"] if chosen else "雲端TTS語音",
                 "word_en_b64": word_en_b64,
                 "word_zh_b64": word_zh_b64,
                 "en_b64": en_b64,
@@ -241,40 +242,44 @@ with main_tab2:
               document.getElementById('btn-pause').innerText = isPaused ? "繼續播放" : "暫停";
               if(isPaused) {{
                  if(currentAudio) currentAudio.pause();
+                 window.speechSynthesis.pause();
               }} else {{
                  if(currentAudio) currentAudio.play();
+                 window.speechSynthesis.resume();
               }}
           }}
           
           function playNext() {{
               if(currentAudio) currentAudio.pause();
+              window.speechSynthesis.cancel();
               idx++;
               render();
           }}
           
+          function speakText(text, lang, onEndCallback) {{
+              if (!text) {{ onEndCallback(); return; }}
+              const u = new SpeechSynthesisUtterance(text);
+              u.lang = lang;
+              u.onend = onEndCallback;
+              u.onerror = onEndCallback;
+              window.speechSynthesis.speak(u);
+          }}
+
           function playStep() {{
               if(isPaused) return;
               if(currentAudio) currentAudio.pause();
               
               const item = playlist[idx];
               let b64 = "";
-              if (step === 0) b64 = item.word_en_b64;
-              else if (step === 1) b64 = item.word_zh_b64;
-              else if (step === 2 || step === 4) b64 = item.en_b64;
-              else if (step === 3) b64 = item.zh_b64;
+              let speakStr = "";
+              let speakLang = "en-US";
+
+              if (step === 0) {{ b64 = item.word_en_b64; speakStr = item.word; speakLang = "en-US"; }}
+              else if (step === 1) {{ b64 = item.word_zh_b64; speakStr = item.word_zh; speakLang = "zh-TW"; }}
+              else if (step === 2 || step === 4) {{ b64 = item.en_b64; speakStr = item.en; speakLang = "en-US"; }}
+              else if (step === 3) {{ b64 = item.zh_b64; speakStr = item.zh; speakLang = "zh-TW"; }}
               
-              if(!b64) {{
-                  step++;
-                  if(step < 5) {{
-                      playStep();
-                  }} else {{
-                      playNext();
-                  }}
-                  return;
-              }}
-              
-              currentAudio = new Audio("data:audio/mp3;base64," + b64);
-              currentAudio.onended = () => {{
+              const onStepEnd = () => {{
                   step++;
                   if (step < 5) {{
                       setTimeout(playStep, {int(interval * 1000)});
@@ -282,7 +287,14 @@ with main_tab2:
                       setTimeout(playNext, {int(interval * 1000 * 1.5)});
                   }}
               }};
-              currentAudio.play().catch(e => console.log(e));
+
+              if(b64) {{
+                  currentAudio = new Audio("data:audio/mp3;base64," + b64);
+                  currentAudio.onended = onStepEnd;
+                  currentAudio.play().catch(e => speakText(speakStr, speakLang, onStepEnd));
+              }} else {{
+                  speakText(speakStr, speakLang, onStepEnd);
+              }}
           }}
           
           render();
@@ -300,16 +312,16 @@ with main_tab2:
         col_a, col_b = st.columns([3, 1])
         with col_a:
             items_pool  = sentences_db.get(sel_theme, [])
-            valid_items = [it for it in items_pool
-                           if it.get("audio_en_variants") and
-                           any(os.path.exists(v["path"]) for v in it["audio_en_variants"])]
-            st.caption(f"📖 本主題共 {len(valid_items)} 條已備妥音檔 (共 {len(items_pool)} 條)")
+            # 所有具備英文例句的條目均為可練習項目（若無實體MP3則開啟雲端TTS語音）
+            valid_items = [it for it in items_pool if it.get("sentence_en")]
+            mp3_ready_count = sum(1 for it in items_pool if it.get("audio_en_variants") and any(os.path.exists(v["path"]) for v in it["audio_en_variants"]))
+            st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔，支援線上語音朗讀)")
         with col_b:
             start_practice = st.button("▶ 開始練習", type="primary", key="start_sent_practice_cloud")
 
         if start_practice:
             if not valid_items:
-                st.warning("⚠️ 該主題暫無語音檔。")
+                st.warning("⚠️ 該主題暫無可練習單字例句。")
             else:
                 shuffled = random.sample(valid_items, len(valid_items))
                 st.session_state["sent_practice_list"]  = shuffled
@@ -362,16 +374,35 @@ with main_tab2:
 
                     c_en, c_zh = st.columns(2)
                     with c_en:
-                        accent_label = chosen_variant["label"] if chosen_variant else "英文"
+                        accent_label = chosen_variant["label"] if chosen_variant else "雲端英文發音"
                         st.caption(f"🎙️ {accent_label}")
-                        if chosen_variant:
+                        if chosen_variant and os.path.exists(chosen_variant["path"]):
                             with open(chosen_variant["path"], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
+                        else:
+                            # 線上 TTS 播放組件
+                            safe_en = sentence_en.replace("'", "\\'").replace('"', '\\"')
+                            components.html(f'''
+                            <button onclick="let u=new SpeechSynthesisUtterance('{safe_en}');u.lang='en-US';window.speechSynthesis.speak(u);"
+                                    style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:0.95rem;">
+                              🔊 朗讀英文例句 (Web TTS)
+                            </button>
+                            ''', height=50)
+
                     with c_zh:
-                        st.caption("🇹🇼 中文翻譯")
+                        st.caption("🇹🇼 中文翻譯語音")
                         if audio_zh_path and os.path.exists(audio_zh_path):
                             with open(audio_zh_path, "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
+                        else:
+                            safe_zh = (sentence_zh or "").replace("'", "\\'").replace('"', '\\"')
+                            if safe_zh:
+                                components.html(f'''
+                                <button onclick="let u=new SpeechSynthesisUtterance('{safe_zh}');u.lang='zh-TW';window.speechSynthesis.speak(u);"
+                                        style="padding:8px 16px;background:#475569;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:0.95rem;">
+                                  🇹🇼 朗讀中文翻譯 (Web TTS)
+                                </button>
+                                ''', height=50)
 
                     nav1, nav2, nav3 = st.columns([1, 1, 2])
                     with nav1:
