@@ -108,11 +108,15 @@ def load_gdrive_json(file_id_or_url: str):
         print(f"[Google Drive Load Error]: {e}")
     return None
 
-# 雲端資料庫設定
-# 專案雲端根目錄：https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link
-# 若要透過 Google Drive 動態載入，需為「單一檔案」的分享連結/ID（如 db.json 或 sentences_cache.json）
-DEFAULT_EXAM_GDRIVE = ""  # 可填寫 db.json 的 Google Drive 檔案 ID
-DEFAULT_VOCAB_GDRIVE = "" # 可填寫 sentences_cache.json 的 Google Drive 檔案 ID
+# ☁️ 雲端專案根目錄 (TOEIC_simulation/):
+# https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link
+# 
+# ⚠️ 注意：根目錄下兩個資料庫位於完全不同的子資料夾中，請填寫各自對應的「單一檔案」分享 ID/連結：
+# 1. 模擬試題庫相對路徑：TOEIC_simulation/TOEIC_App/public/data/db.json
+DEFAULT_EXAM_GDRIVE = ""
+
+# 2. 單字例句庫相對路徑：TOEIC_simulation/vocabulary/sentences_cache.json
+DEFAULT_VOCAB_GDRIVE = ""
 
 gdrive_db_id = DEFAULT_EXAM_GDRIVE
 gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
