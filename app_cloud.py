@@ -15,6 +15,16 @@ st.markdown('<meta name="google-site-verification" content="8bhBxGk7NWw-ObZUN9rr
 
 st.markdown("""
 <style>
+/* 隱藏右上角 Share、GitHub、Edit 及選單列 */
+#MainMenu { visibility: hidden; display: none !important; }
+header { visibility: hidden; display: none !important; }
+footer { visibility: hidden; display: none !important; }
+[data-testid="stHeader"] { visibility: hidden; display: none !important; }
+[data-testid="stToolbar"] { visibility: hidden; display: none !important; }
+[data-testid="stDecoration"] { visibility: hidden; display: none !important; }
+.stAppHeader { visibility: hidden; display: none !important; }
+.stAppToolbar { visibility: hidden; display: none !important; }
+
 .stButton>button { background-color: #4C51BF; color: white; border-radius: 6px; }
 .stButton>button:hover { background-color: #434190; }
 </style>
@@ -26,13 +36,85 @@ st.markdown("歡迎使用 TOEIC 模擬考試系統！本系統提供精準的擬
 # 主頁面切換：2.1 模擬測驗 / 2.2 單字例句練習
 main_tab1, main_tab2 = st.tabs(["📝 2.1 模擬測驗", "📚 2.2 單字例句練習"])
 
+import requests
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ☁️ Google Drive 資料庫讀取與快取模組
+# ═══════════════════════════════════════════════════════════════════════════
+def extract_gdrive_id(url_or_id: str) -> str:
+    """提取 Google Drive 連結中的 File ID"""
+    if not url_or_id: return ""
+    url_or_id = url_or_id.strip()
+    if "/d/" in url_or_id:
+        try:
+            return url_or_id.split("/d/")[1].split("/")[0]
+        except:
+            pass
+    if "id=" in url_or_id:
+        try:
+            return url_or_id.split("id=")[1].split("&")[0]
+        except:
+            pass
+    return url_or_id
+
+@st.cache_data(ttl=300)
+def load_gdrive_json(file_id_or_url: str):
+    """從 Google Drive 下載 JSON 檔案並解析 (快取 5 分鐘)"""
+    file_id = extract_gdrive_id(file_id_or_url)
+    if not file_id:
+        return None
+    
+    # Google Drive 直連下載網址
+    download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    try:
+        session = requests.Session()
+        response = session.get(download_url, timeout=10)
+        
+        # 處理大檔案的確認提示頁面
+        if "confirm=" in response.text or "download_warning" in response.text:
+            for key, val in response.cookies.items():
+                if key.startswith("download_warning"):
+                    download_url += f"&confirm={val}"
+                    response = session.get(download_url, timeout=10)
+                    break
+
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        print(f"[Google Drive Load Error]: {e}")
+    return None
+
+# 側邊欄：Google Drive 資料庫導向設定
+st.sidebar.title("☁️ 雲端資料庫設定")
+st.sidebar.markdown("請貼上 Google Drive **已公開分享**的 `db.json` 或 `sentences_cache.json` 連結/ID：")
+
+DEFAULT_EXAM_GDRIVE = "https://drive.google.com/drive/folders/12Lc6qJo1HqUvnPysEdvEQc8doNPn-J73?usp=drive_link"
+DEFAULT_VOCAB_GDRIVE = "https://drive.google.com/drive/folders/1TndzUjLXlR4MkAZ1CBX3Ue344zb5Rq8Z?usp=drive_link"
+
+gdrive_db_id = st.sidebar.text_input("📝 模擬試題庫 Google Drive 連結/ID:", value=DEFAULT_EXAM_GDRIVE, key="gdrive_db_id")
+gdrive_vocab_id = st.sidebar.text_input("📚 單字例句庫 Google Drive 連結/ID:", value=DEFAULT_VOCAB_GDRIVE, key="gdrive_vocab_id")
+
+if st.sidebar.button("🔄 立即重新整理雲端資料庫", use_container_width=True):
+    st.cache_data.clear()
+    st.sidebar.success("✅ 已清除快取，重新載入最新資料庫！")
+    st.rerun()
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 📚 功能 2.2：單字例句練習
 # ═══════════════════════════════════════════════════════════════════════════
 with main_tab2:
     _SENTENCES_PATH = os.path.join("vocabulary", "sentences_cache.json")
     sentences_db = {}
-    if os.path.exists(_SENTENCES_PATH):
+    
+    # 優先嘗試從 Google Drive 讀取單字庫
+    if gdrive_vocab_id:
+        gdrive_vocab_data = load_gdrive_json(gdrive_vocab_id)
+        if gdrive_vocab_data:
+            sentences_db = gdrive_vocab_data
+            st.info("☁️ 已成功連結並讀取 Google Drive 單字例句庫！")
+
+    # 備選：從本地檔案讀取
+    if not sentences_db and os.path.exists(_SENTENCES_PATH):
         with open(_SENTENCES_PATH, "r", encoding="utf-8") as _sf:
             sentences_db = json.load(_sf)
 
@@ -318,6 +400,13 @@ with main_tab1:
 
     @st.cache_data(ttl=60)
     def _load_published_db():
+        # 1. 優先嘗試從 Google Drive 讀取試題庫
+        if gdrive_db_id:
+            gdrive_data = load_gdrive_json(gdrive_db_id)
+            if gdrive_data:
+                return gdrive_data
+                
+        # 2. 備選：從本地檔案讀取
         if os.path.exists(_PUBLISHED_DB_PATH):
             with open(_PUBLISHED_DB_PATH, "r", encoding="utf-8") as _f:
                 return json.load(_f)
