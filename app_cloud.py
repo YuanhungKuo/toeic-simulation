@@ -108,13 +108,11 @@ def load_gdrive_json(file_id_or_url: str):
         print(f"[Google Drive Load Error]: {e}")
     return None
 
-# 側邊欄：Google Drive 資料庫導向設定
-st.sidebar.title("☁️ 雲端資料庫設定")
-st.sidebar.markdown("請貼上 Google Drive **已公開分享**的 `db.json` 或 `sentences_cache.json` 連結/ID：")
-
-DEFAULT_CLOUD_ROOT_GDRIVE = "https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link"
-DEFAULT_EXAM_GDRIVE = DEFAULT_CLOUD_ROOT_GDRIVE
-DEFAULT_VOCAB_GDRIVE = DEFAULT_CLOUD_ROOT_GDRIVE
+# 雲端資料庫設定
+# 專案雲端根目錄：https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link
+# 若要透過 Google Drive 動態載入，需為「單一檔案」的分享連結/ID（如 db.json 或 sentences_cache.json）
+DEFAULT_EXAM_GDRIVE = ""  # 可填寫 db.json 的 Google Drive 檔案 ID
+DEFAULT_VOCAB_GDRIVE = "" # 可填寫 sentences_cache.json 的 Google Drive 檔案 ID
 
 gdrive_db_id = DEFAULT_EXAM_GDRIVE
 gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
