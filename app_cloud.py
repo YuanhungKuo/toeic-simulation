@@ -80,6 +80,10 @@ def extract_gdrive_id(url_or_id: str) -> str:
 @st.cache_data(ttl=300)
 def load_gdrive_json(file_id_or_url: str):
     """從 Google Drive 下載 JSON 檔案並解析 (快取 5 分鐘)"""
+    if not file_id_or_url or "/folders/" in file_id_or_url:
+        # 專案根目錄/資料夾連結直接切換至專案庫內部檔案讀取
+        return None
+
     file_id = extract_gdrive_id(file_id_or_url)
     if not file_id:
         return None
