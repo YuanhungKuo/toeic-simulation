@@ -116,7 +116,7 @@ def load_gdrive_json(file_id_or_url: str):
 DEFAULT_EXAM_GDRIVE = ""
 
 # 2. 單字例句庫相對路徑：TOEIC_simulation/vocabulary/sentences_cache.json
-DEFAULT_VOCAB_GDRIVE = ""
+DEFAULT_VOCAB_GDRIVE = "https://drive.google.com/file/d/1aAqRod-aQcelluM-ke5ky2oHbsIbO8_S/view?usp=drive_link"
 
 gdrive_db_id = DEFAULT_EXAM_GDRIVE
 gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
