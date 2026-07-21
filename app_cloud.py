@@ -118,6 +118,9 @@ DEFAULT_EXAM_GDRIVE = ""
 # 2. 單字例句庫相對路徑：TOEIC_simulation/vocabulary/sentences_cache.json
 DEFAULT_VOCAB_GDRIVE = "https://drive.google.com/file/d/1aAqRod-aQcelluM-ke5ky2oHbsIbO8_S/view?usp=drive_link"
 
+# 3. 語音檔雲端資料夾：TOEIC_simulation/vocabulary/audio/
+DEFAULT_AUDIO_FOLDER_GDRIVE = "https://drive.google.com/drive/folders/1RdujqiKbwnBNBqnH6pxu-D71rCt8i-Qg?usp=drive_link"
+
 gdrive_db_id = DEFAULT_EXAM_GDRIVE
 gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
 
