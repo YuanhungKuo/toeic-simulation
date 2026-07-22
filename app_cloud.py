@@ -109,7 +109,9 @@ def load_gdrive_json(file_id_or_url: str):
     return None
 
 # 🔑 Google Drive API 金鑰設定 (請貼入您的 Google Drive API Key)
-GDRIVE_API_KEY = st.secrets.get("GDRIVE_API_KEY", "")
+# GDRIVE_API_KEY = st.secrets.get("GDRIVE_API_KEY", "")
+GDRIVE_API_KEY = "AIzaSyD5fF2wPzk7xhJE7v3G8k2UqK2W7eW9Uss"
+
 
 @st.cache_data(ttl=3600)
 def load_gdrive_audio_map(folder_url: str, api_key: str = ""):
