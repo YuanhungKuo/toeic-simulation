@@ -65,6 +65,11 @@ def extract_gdrive_id(url_or_id: str) -> str:
     """提取 Google Drive 連結中的 File ID"""
     if not url_or_id: return ""
     url_or_id = url_or_id.strip()
+    if "/folders/" in url_or_id:
+        try:
+            return url_or_id.split("/folders/")[1].split("?")[0].split("/")[0]
+        except:
+            pass
     if "/d/" in url_or_id:
         try:
             return url_or_id.split("/d/")[1].split("/")[0]
@@ -369,13 +374,14 @@ with main_tab2:
               
               const item = playlist[idx];
               let b64 = "";
+              let audioUrl = "";
               let speakStr = "";
               let speakLang = "en-US";
 
-              if (step === 0) {{ b64 = item.word_en_b64; speakStr = item.word; speakLang = "en-US"; }}
-              else if (step === 1) {{ b64 = item.word_zh_b64; speakStr = item.word_zh; speakLang = "zh-TW"; }}
-              else if (step === 2 || step === 4) {{ b64 = item.en_b64; speakStr = item.en; speakLang = "en-US"; }}
-              else if (step === 3) {{ b64 = item.zh_b64; speakStr = item.zh; speakLang = "zh-TW"; }}
+              if (step === 0) {{ b64 = item.word_en_b64; audioUrl = item.word_en_url; speakStr = item.word; speakLang = "en-US"; }}
+              else if (step === 1) {{ b64 = item.word_zh_b64; audioUrl = item.word_zh_url; speakStr = item.word_zh; speakLang = "zh-TW"; }}
+              else if (step === 2 || step === 4) {{ b64 = item.en_b64; audioUrl = item.en_url; speakStr = item.en; speakLang = "en-US"; }}
+              else if (step === 3) {{ b64 = item.zh_b64; audioUrl = item.zh_url; speakStr = item.zh; speakLang = "zh-TW"; }}
               
               const onStepEnd = () => {{
                   step++;
@@ -389,6 +395,12 @@ with main_tab2:
               if(b64) {{
                   currentAudio = new Audio("data:audio/mp3;base64," + b64);
                   currentAudio.onended = onStepEnd;
+                  currentAudio.onerror = () => speakText(speakStr, speakLang, onStepEnd);
+                  currentAudio.play().catch(e => speakText(speakStr, speakLang, onStepEnd));
+              }} else if(audioUrl) {{
+                  currentAudio = new Audio(audioUrl);
+                  currentAudio.onended = onStepEnd;
+                  currentAudio.onerror = () => speakText(speakStr, speakLang, onStepEnd);
                   currentAudio.play().catch(e => speakText(speakStr, speakLang, onStepEnd));
               }} else {{
                   speakText(speakStr, speakLang, onStepEnd);
