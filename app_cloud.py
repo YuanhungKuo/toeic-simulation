@@ -123,9 +123,17 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
     """強大解析器：優先載入語音索引檔，並支援 Google Drive API v3 動態深度提取」"""
     # 0. 優先載入隨專案庫提交的 17,290 個原聲音檔全量索引檔
     local_map_path = os.path.join("vocabulary", "audio_gdrive_map.json")
-    if os.path.exists(local_map_path):
+    root_map_path = "audio_gdrive_map.json"
+    
+    target_path = None
+    if os.path.exists(root_map_path):
+        target_path = root_map_path
+    elif os.path.exists(local_map_path):
+        target_path = local_map_path
+        
+    if target_path:
         try:
-            with open(local_map_path, "r", encoding="utf-8") as f:
+            with open(target_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data:
                     return data
@@ -279,6 +287,22 @@ with main_tab2:
                     zh_b64 = base64.b64encode(f.read()).decode("ascii")
             elif zh_src[0] == "gdrive_url":
                 zh_url = zh_src[1]
+                
+            word_en_src = resolve_audio_source(item.get("audio_word_en"), gdrive_audio_map)
+            word_en_b64, word_en_url = "", ""
+            if word_en_src[0] == "local":
+                with open(word_en_src[1], "rb") as f:
+                    word_en_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif word_en_src[0] == "gdrive_url":
+                word_en_url = word_en_src[1]
+                
+            word_zh_src = resolve_audio_source(item.get("audio_word_zh"), gdrive_audio_map)
+            word_zh_b64, word_zh_url = "", ""
+            if word_zh_src[0] == "local":
+                with open(word_zh_src[1], "rb") as f:
+                    word_zh_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif word_zh_src[0] == "gdrive_url":
+                word_zh_url = word_zh_src[1]
 
             playlist.append({
                 "word": item.get("display", item.get("word", "")),
@@ -289,7 +313,11 @@ with main_tab2:
                 "en_b64": en_b64,
                 "en_url": en_url,
                 "zh_b64": zh_b64,
-                "zh_url": zh_url
+                "zh_url": zh_url,
+                "word_en_b64": word_en_b64,
+                "word_en_url": word_en_url,
+                "word_zh_b64": word_zh_b64,
+                "word_zh_url": word_zh_url
             })
             
         js_code = f"""
