@@ -199,7 +199,8 @@ def resolve_audio_source(path_str: str, audio_map: dict):
     filename = os.path.basename(path_str)
     if filename in audio_map:
         file_id = audio_map[filename]
-        return ("gdrive_url", f"https://drive.google.com/uc?export=download&id={file_id}")
+        api_key_str = f"&key={GDRIVE_API_KEY}" if "GDRIVE_API_KEY" in globals() and GDRIVE_API_KEY else ""
+        return ("gdrive_url", f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media{api_key_str}")
     return (None, None)
 
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
