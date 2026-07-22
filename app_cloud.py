@@ -449,9 +449,11 @@ with main_tab2:
 
                     with c_zh:
                         st.caption("🇹🇼 中文翻譯語音")
-                        if audio_zh_path and os.path.exists(audio_zh_path):
-                            with open(audio_zh_path, "rb") as _af:
+                        if zh_audio_target[0] == "local":
+                            with open(zh_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
+                        elif zh_audio_target[0] == "gdrive_url":
+                            st.audio(zh_audio_target[1], format="audio/mp3")
                         else:
                             safe_zh = (sentence_zh or "").replace("'", "\\'").replace('"', '\\"')
                             if safe_zh:
