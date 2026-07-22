@@ -114,8 +114,19 @@ GDRIVE_API_KEY = "AIzaSyD5fF2wPzk7xhJE7v3G8k2UqK2W7eW9Uss"
 
 
 @st.cache_data(ttl=3600)
-def load_gdrive_audio_map(folder_url: str, api_key: str = ""):
-    """強大解析器：透過 Google Drive API v3 或網頁數據，動態遞迴提取子資料夾內全數 MP3 檔名與 File ID」"""
+def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
+    """強大解析器：優先載入語音索引檔，並支援 Google Drive API v3 動態深度提取」"""
+    # 0. 優先載入隨專案庫提交的 17,290 個原聲音檔全量索引檔
+    local_map_path = os.path.join("vocabulary", "audio_gdrive_map.json")
+    if os.path.exists(local_map_path):
+        try:
+            with open(local_map_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data:
+                    return data
+        except Exception as e:
+            print(f"[Local Audio Map Load Error]: {e}")
+
     folder_id = extract_gdrive_id(folder_url)
     if not folder_id:
         return {}
@@ -123,39 +134,37 @@ def load_gdrive_audio_map(folder_url: str, api_key: str = ""):
     audio_map = {}
     session = requests.Session()
 
-    # 1. 優先使用 Google Drive API v3 進行 100% 遞迴全資料夾深度掃描
+    # 1. 優先使用 Google Drive API v3 進行 2 階段 100% 深度掃描
     if api_key:
-        def fetch_recursive(current_folder_id):
-            page_token = None
-            while True:
-                q_str = f"'{current_folder_id}' in parents and trashed = false"
-                url = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(q_str)}&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000&key={api_key}"
-                try:
-                    r = session.get(url, timeout=12)
-                    if r.status_code != 200:
-                        break
-                    data = r.json()
-                    for f in data.get("files", []):
-                        mime = f.get("mimeType", "")
-                        name = f.get("name", "").strip()
-                        fid = f.get("id", "")
-                        if mime == "application/vnd.google-apps.folder":
-                            fetch_recursive(fid)
-                        elif name.endswith(".mp3"):
-                            audio_map[name] = fid
-                    page_token = data.get("nextPageToken")
-                    if not page_token:
-                        break
-                except Exception as e:
-                    print(f"[GDrive API Loop Error]: {e}")
-                    break
         try:
-            fetch_recursive(folder_id)
+            q_root = f"'{folder_id}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'"
+            url_root = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(q_root)}&fields=files(id,name)&pageSize=100&key={api_key}"
+            r_root = session.get(url_root, timeout=10)
+            if r_root.status_code == 200:
+                subfolders = r_root.json().get("files", [])
+                for subfolder in subfolders:
+                    sf_id = subfolder["id"]
+                    page_token = None
+                    while True:
+                        q_sub = f"'{sf_id}' in parents and trashed = false"
+                        url_sub = f"https://www.googleapis.com/drive/v3/files?q={requests.utils.quote(q_sub)}&fields=nextPageToken,files(id,name)&pageSize=1000&key={api_key}"
+                        if page_token:
+                            url_sub += f"&pageToken={page_token}"
+                        r_sub = session.get(url_sub, timeout=10)
+                        if r_sub.status_code != 200:
+                            break
+                        data = r_sub.json()
+                        for f in data.get("files", []):
+                            if f.get("name", "").endswith(".mp3"):
+                                audio_map[f["name"].strip()] = f["id"]
+                        page_token = data.get("nextPageToken")
+                        if not page_token:
+                            break
             if audio_map:
-                print(f"[GDrive API] Successfully fetched {len(audio_map)} mp3 files via API!")
+                print(f"[GDrive API] Successfully mapped {len(audio_map)} mp3 files via API!")
                 return audio_map
         except Exception as e:
-            print(f"[GDrive API Traverse Error]: {e}")
+            print(f"[GDrive API 2-step Error]: {e}")
 
     # 2. 備選：從網頁 HTML/JS 提取
     try:
