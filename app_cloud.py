@@ -218,15 +218,15 @@ DEFAULT_AUDIO_FOLDER_GDRIVE = "https://drive.google.com/drive/folders/1RdujqiKbw
 gdrive_db_id = DEFAULT_EXAM_GDRIVE
 gdrive_vocab_id = DEFAULT_VOCAB_GDRIVE
 
-if st.sidebar.button("🔄 立即重新整理雲端資料庫", use_container_width=True):
-    st.cache_data.clear()
-    st.sidebar.success("✅ 已清除快取，重新載入最新資料庫！")
-    st.rerun()
-
 # ═══════════════════════════════════════════════════════════════════════════
 # 📚 功能 2.2：單字例句練習
 # ═══════════════════════════════════════════════════════════════════════════
 with main_tab2:
+    if st.button("🔄 立即重新整理雲端資料庫 (清除快取)", use_container_width=True, key="clear_cache_main"):
+        st.cache_data.clear()
+        st.success("✅ 已清除快取，重新載入最新資料庫！")
+        st.rerun()
+
     _SENTENCES_PATH = os.path.join("vocabulary", "sentences_cache.json")
     sentences_db = {}
     
