@@ -108,6 +108,44 @@ def load_gdrive_json(file_id_or_url: str):
         print(f"[Google Drive Load Error]: {e}")
     return None
 
+@st.cache_data(ttl=600)
+def load_gdrive_audio_map(folder_url: str):
+    """強大解析器：從 Google Drive 音檔公開資料夾中動態提取 MP3 檔名與 File ID 對照表"""
+    folder_id = extract_gdrive_id(folder_url)
+    if not folder_id:
+        return {}
+    audio_map = {}
+    try:
+        session = requests.Session()
+        url = f"https://drive.google.com/drive/folders/{folder_id}"
+        resp = session.get(url, timeout=12)
+        if resp.status_code == 200:
+            import re
+            pattern = r'\["([a-zA-Z0-9_-]{25,50})",\s*\[?"([^"]+\.mp3)"'
+            matches = re.findall(pattern, resp.text)
+            for file_id, filename in matches:
+                audio_map[filename.strip()] = file_id
+            pattern_alt = r'"([^"]+\.mp3)"[^\}]{1,120}?"([a-zA-Z0-9_-]{25,50})"'
+            matches_alt = re.findall(pattern_alt, resp.text)
+            for filename, file_id in matches_alt:
+                if filename.strip() not in audio_map:
+                    audio_map[filename.strip()] = file_id
+    except Exception as e:
+        print(f"[GDrive Audio Map Error]: {e}")
+    return audio_map
+
+def resolve_audio_source(path_str: str, audio_map: dict):
+    """判斷音檔來源：回傳 (type, value)"""
+    if not path_str:
+        return (None, None)
+    if os.path.exists(path_str):
+        return ("local", path_str)
+    filename = os.path.basename(path_str)
+    if filename in audio_map:
+        file_id = audio_map[filename]
+        return ("gdrive_url", f"https://drive.google.com/uc?export=download&id={file_id}")
+    return (None, None)
+
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
 # https://drive.google.com/drive/folders/1TyQm_WFj2ibibiYUAnWuzipLtft-BzPR?usp=drive_link
 # 
@@ -136,6 +174,9 @@ with main_tab2:
     _SENTENCES_PATH = os.path.join("vocabulary", "sentences_cache.json")
     sentences_db = {}
     
+    # 讀取 Google Drive 音檔資料夾映射表
+    gdrive_audio_map = load_gdrive_audio_map(DEFAULT_AUDIO_FOLDER_GDRIVE)
+    
     # 優先嘗試從 Google Drive 讀取單字庫
     if gdrive_vocab_id:
         gdrive_vocab_data = load_gdrive_json(gdrive_vocab_id)
@@ -153,42 +194,45 @@ with main_tab2:
         for item in s_list:
             en = item.get("sentence_en", "")
             zh = item.get("sentence_zh", "")
-            variants = [v for v in item.get("audio_en_variants", []) if os.path.exists(v["path"])]
-            chosen = random.choice(variants) if variants else None
+            
+            # 優先嘗試尋找可用音檔來源
+            chosen = None
+            chosen_src = (None, None)
+            if item.get("audio_en_variants"):
+                for v in item["audio_en_variants"]:
+                    src = resolve_audio_source(v.get("path"), gdrive_audio_map)
+                    if src[0]:
+                        chosen = v
+                        chosen_src = src
+                        break
             
             en_b64 = ""
-            if chosen and os.path.exists(chosen["path"]):
-                with open(chosen["path"], "rb") as f:
+            en_url = ""
+            if chosen_src[0] == "local":
+                with open(chosen_src[1], "rb") as f:
                     en_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif chosen_src[0] == "gdrive_url":
+                en_url = chosen_src[1]
                 
+            zh_src = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
             zh_b64 = ""
-            zh_path = item.get("audio_zh", "")
-            if zh_path and os.path.exists(zh_path):
-                with open(zh_path, "rb") as f:
+            zh_url = ""
+            if zh_src[0] == "local":
+                with open(zh_src[1], "rb") as f:
                     zh_b64 = base64.b64encode(f.read()).decode("ascii")
-                    
-            word_en_b64 = ""
-            word_en_path = item.get("audio_word_en", "")
-            if word_en_path and os.path.exists(word_en_path):
-                with open(word_en_path, "rb") as f:
-                    word_en_b64 = base64.b64encode(f.read()).decode("ascii")
-                    
-            word_zh_b64 = ""
-            word_zh_path = item.get("audio_word_zh", "")
-            if word_zh_path and os.path.exists(word_zh_path):
-                with open(word_zh_path, "rb") as f:
-                    word_zh_b64 = base64.b64encode(f.read()).decode("ascii")
-                    
+            elif zh_src[0] == "gdrive_url":
+                zh_url = zh_src[1]
+
             playlist.append({
                 "word": item.get("display", item.get("word", "")),
                 "word_zh": item.get("word_zh", ""),
                 "en": en,
                 "zh": zh,
-                "accent": chosen["label"] if chosen else "雲端TTS語音",
-                "word_en_b64": word_en_b64,
-                "word_zh_b64": word_zh_b64,
+                "accent": chosen["label"] if chosen else ("Google Drive 原聲" if en_url else "雲端TTS語音"),
                 "en_b64": en_b64,
-                "zh_b64": zh_b64
+                "en_url": en_url,
+                "zh_b64": zh_b64,
+                "zh_url": zh_url
             })
             
         js_code = f"""
@@ -353,10 +397,19 @@ with main_tab2:
                     word_zh     = item.get("word_zh", "")
                     sentence_en = item.get("sentence_en", "")
                     sentence_zh = item.get("sentence_zh", "")
-                    audio_zh_path = item.get("audio_zh", "")
 
-                    variants = [v for v in item.get("audio_en_variants", []) if os.path.exists(v["path"])]
-                    chosen_variant = random.choice(variants) if variants else None
+                    # 優先嘗試解析英文音檔來源（本地檔或 Google Drive 直連網址）
+                    chosen_variant = None
+                    en_audio_target = (None, None)
+                    if item.get("audio_en_variants"):
+                        for v in item["audio_en_variants"]:
+                            src = resolve_audio_source(v.get("path"), gdrive_audio_map)
+                            if src[0]:
+                                chosen_variant = v
+                                en_audio_target = src
+                                break
+
+                    zh_audio_target = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
                     word_zh_html = f" <span style='font-size:1.1rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
 
                     st.markdown(f"""
@@ -377,11 +430,13 @@ with main_tab2:
 
                     c_en, c_zh = st.columns(2)
                     with c_en:
-                        accent_label = chosen_variant["label"] if chosen_variant else "雲端英文發音"
+                        accent_label = chosen_variant["label"] if chosen_variant else ("Google Drive 原聲發音" if en_audio_target[0] == "gdrive_url" else "雲端英文發音")
                         st.caption(f"🎙️ {accent_label}")
-                        if chosen_variant and os.path.exists(chosen_variant["path"]):
-                            with open(chosen_variant["path"], "rb") as _af:
+                        if en_audio_target[0] == "local":
+                            with open(en_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
+                        elif en_audio_target[0] == "gdrive_url":
+                            st.audio(en_audio_target[1], format="audio/mp3")
                         else:
                             # 線上 TTS 播放組件
                             safe_en = sentence_en.replace("'", "\\'").replace('"', '\\"')
