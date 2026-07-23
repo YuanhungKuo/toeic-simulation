@@ -347,7 +347,6 @@ with main_tab2:
           let idx = {start_idx};
           let step = 0;
           let currentAudio = null;
-          let currentUtterance = null;
           let isPaused = false;
           let currentTimer = null;
           let currentStepId = 0;
@@ -381,14 +380,6 @@ with main_tab2:
               currentAudio.pause();
               currentAudio.src = "";
               currentAudio = null;
-            }}
-            if (currentUtterance) {{
-              currentUtterance.onend = null;
-              currentUtterance.onerror = null;
-              currentUtterance = null;
-            }}
-            if (window.speechSynthesis && window.speechSynthesis.speaking) {{
-              window.speechSynthesis.cancel();
             }}
           }}
 
@@ -438,12 +429,9 @@ with main_tab2:
             if(isPaused) {{
               if(currentTimer) {{ clearTimeout(currentTimer); currentTimer = null; }}
               if(currentAudio) currentAudio.pause();
-              if(window.speechSynthesis) window.speechSynthesis.pause();
             }} else {{
               if(currentAudio) {{
                 currentAudio.play().catch(() => playStep());
-              }} else if (window.speechSynthesis && window.speechSynthesis.paused) {{
-                window.speechSynthesis.resume();
               }} else {{
                 playStep();
               }}
@@ -456,22 +444,6 @@ with main_tab2:
             render();
           }}
 
-          function speakText(text, lang, onEndCallback) {{
-            if (!text) {{ onEndCallback(); return; }}
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
-            currentUtterance = new SpeechSynthesisUtterance(text);
-            currentUtterance.lang = lang;
-            currentUtterance.onend = () => {{
-              currentUtterance = null;
-              onEndCallback();
-            }};
-            currentUtterance.onerror = () => {{
-              currentUtterance = null;
-              onEndCallback();
-            }};
-            window.speechSynthesis.speak(currentUtterance);
-          }}
-
           function playStep() {{
             if(isPaused) return;
             clearCurrentStep();
@@ -482,13 +454,11 @@ with main_tab2:
 
             let b64 = "";
             let audioUrl = "";
-            let speakStr = "";
-            let speakLang = "en-US";
 
-            if (step === 0) {{ b64 = item.word_en_b64; audioUrl = item.word_en_url; speakStr = item.word; speakLang = "en-US"; }}
-            else if (step === 1) {{ b64 = item.word_zh_b64; audioUrl = item.word_zh_url; speakStr = item.word_zh; speakLang = "zh-TW"; }}
-            else if (step === 2 || step === 4) {{ b64 = item.en_b64; audioUrl = item.en_url; speakStr = item.en; speakLang = "en-US"; }}
-            else if (step === 3) {{ b64 = item.zh_b64; audioUrl = item.zh_url; speakStr = item.zh; speakLang = "zh-TW"; }}
+            if (step === 0) {{ b64 = item.word_en_b64; audioUrl = item.word_en_url; }}
+            else if (step === 1) {{ b64 = item.word_zh_b64; audioUrl = item.word_zh_url; }}
+            else if (step === 2 || step === 4) {{ b64 = item.en_b64; audioUrl = item.en_url; }}
+            else if (step === 3) {{ b64 = item.zh_b64; audioUrl = item.zh_url; }}
 
             let hasFinished = false;
             const triggerNextStepOnce = (delayMs) => {{
@@ -511,23 +481,15 @@ with main_tab2:
               triggerNextStepOnce({int(interval * 1000)});
             }};
 
-            const handleFallbackTTS = () => {{
-              if (stepToken !== currentStepId || isPaused || hasFinished) return;
-              speakText(speakStr, speakLang, onStepEnd);
-            }};
+            const targetAudioSrc = b64 ? ("data:audio/mp3;base64," + b64) : audioUrl;
 
-            if(b64) {{
-              currentAudio = new Audio("data:audio/mp3;base64," + b64);
+            if (targetAudioSrc) {{
+              currentAudio = new Audio(targetAudioSrc);
               currentAudio.onended = onStepEnd;
-              currentAudio.onerror = handleFallbackTTS;
-              currentAudio.play().catch(handleFallbackTTS);
-            }} else if(audioUrl) {{
-              currentAudio = new Audio(audioUrl);
-              currentAudio.onended = onStepEnd;
-              currentAudio.onerror = handleFallbackTTS;
-              currentAudio.play().catch(handleFallbackTTS);
+              currentAudio.onerror = () => triggerNextStepOnce(200);
+              currentAudio.play().catch(() => triggerNextStepOnce(200));
             }} else {{
-              handleFallbackTTS();
+              onStepEnd();
             }}
           }}
           
@@ -546,10 +508,9 @@ with main_tab2:
         col_a, col_b = st.columns([3, 1])
         with col_a:
             items_pool  = sentences_db.get(sel_theme, [])
-            # 所有具備英文例句的條目均為可練習項目（若無實體MP3則開啟雲端TTS語音）
             valid_items = [it for it in items_pool if it.get("sentence_en")]
             mp3_ready_count = sum(1 for it in items_pool if it.get("audio_en_variants") and any(os.path.exists(v["path"]) for v in it["audio_en_variants"]))
-            st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔，支援線上語音朗讀)")
+            st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔)")
         with col_b:
             start_practice = st.button("▶ 開始練習", type="primary", key="start_sent_practice_cloud")
 
@@ -585,7 +546,6 @@ with main_tab2:
                     sentence_en = item.get("sentence_en", "")
                     sentence_zh = item.get("sentence_zh", "")
 
-                    # 優先嘗試解析英文音檔來源（本地檔或 Google Drive 直連網址）
                     chosen_variant = None
                     en_audio_target = (None, None)
                     if item.get("audio_en_variants"):
@@ -623,14 +583,7 @@ with main_tab2:
                         elif en_audio_target[0] == "gdrive_url":
                             st.audio(en_audio_target[1], format="audio/mp3")
                         else:
-                            # 線上 TTS 播放組件
-                            safe_en = sentence_en.replace("'", "\\'").replace('"', '\\"')
-                            components.html(f'''
-                            <button onclick="let u=new SpeechSynthesisUtterance('{safe_en}');u.lang='en-US';window.speechSynthesis.speak(u);"
-                                    style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1.1rem;">
-                              🔊 朗讀英文例句 (Web TTS)
-                            </button>
-                            ''', height=60)
+                            st.info("⚠️ 該句尚無英文 MP3 音檔")
 
                     with c_zh:
                         if zh_audio_target[0] == "local":
@@ -639,14 +592,7 @@ with main_tab2:
                         elif zh_audio_target[0] == "gdrive_url":
                             st.audio(zh_audio_target[1], format="audio/mp3")
                         else:
-                            safe_zh = (sentence_zh or "").replace("'", "\\'").replace('"', '\\"')
-                            if safe_zh:
-                                components.html(f'''
-                                <button onclick="let u=new SpeechSynthesisUtterance('{safe_zh}');u.lang='zh-TW';window.speechSynthesis.speak(u);"
-                                        style="padding:10px 20px;background:#475569;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1.1rem;">
-                                  🇹🇼 朗讀中文翻譯 (Web TTS)
-                                </button>
-                                ''', height=60)
+                            st.info("⚠️ 該句尚無中文 MP3 音檔")
 
                     nav1, nav2, nav3 = st.columns([1, 1, 2])
                     with nav1:
