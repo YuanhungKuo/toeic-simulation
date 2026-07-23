@@ -56,11 +56,11 @@ button[kind="header"] { display: none !important; visibility: hidden !important;
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎓 TOEIC 模擬考試系統 (雲端線上測驗版)")
-st.markdown("歡迎使用 TOEIC 模擬考試系統！本系統提供精準的擬真多益 8 大題型測驗與單字例句練習。")
+st.title("🎓 TOEIC 模擬考試系統")
+st.markdown("歡迎使用 TOEIC 模擬考試系統！本系統提供擬真多益題型測驗與重點單字例句練習。")
 
 # 主頁面切換：2.1 模擬測驗 / 2.2 單字例句練習
-main_tab1, main_tab2 = st.tabs(["📝 2.1 模擬測驗", "📚 2.2 單字例句練習"])
+main_tab1, main_tab2 = st.tabs(["📝 TOEIC 模擬測驗", "📚 單字例句練習"])
 
 import requests
 
@@ -258,7 +258,7 @@ def preload_and_bg_download(items_pool, audio_map):
     
     # 同步下載前4個音檔，確保第一句能秒播
     if first_batch:
-        with st.spinner(f"☁️ 正在連線雲端音訊庫..."):
+        with st.spinner(f"☁️ 正在連線雲端資料庫..."):
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
                 list(ex.map(download_gdrive_audio_to_static, first_batch))
                 
@@ -319,7 +319,7 @@ with main_tab2:
         gdrive_vocab_data = load_gdrive_json(gdrive_vocab_id)
         if gdrive_vocab_data:
             sentences_db = gdrive_vocab_data
-            st.info("☁️ 已成功連結並讀取 Google Drive 單字例句庫！")
+            st.info("☁️ 已成功連結單字例句庫！")
 
     # 備選：從本地檔案讀取
     if not sentences_db and os.path.exists(_SENTENCES_PATH):
