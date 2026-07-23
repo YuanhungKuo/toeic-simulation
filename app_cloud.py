@@ -3,6 +3,9 @@ import streamlit.components.v1 as components
 import time
 import asyncio
 import random
+import threading
+import os
+os.makedirs("static", exist_ok=True)
 import os
 import json
 import concurrent.futures
@@ -211,53 +214,60 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
 
 
 @st.cache_data(show_spinner=False, max_entries=5000)
-def get_gdrive_audio_base64(file_id):
+def download_gdrive_audio_to_static(file_id):
+    out_path = f"static/{file_id}.mp3"
+    if os.path.exists(out_path):
+        return True
     url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
-    r = requests.get(url, timeout=10)
-    if r.status_code == 200:
-        return base64.b64encode(r.content).decode("utf-8")
-    else:
-        raise Exception(f"Failed to fetch {file_id}: HTTP {r.status_code}")
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            with open(out_path, "wb") as f:
+                f.write(r.content)
+            return True
+    except:
+        pass
+    return False
 
-def preload_all_audio_b64(items_pool, audio_map):
-    ids_to_fetch = set()
+def preload_and_bg_download(items_pool, audio_map):
+    ids_to_fetch = []
+    def add_id(cf):
+        if cf in audio_map and audio_map[cf] not in ids_to_fetch:
+            ids_to_fetch.append(audio_map[cf])
+            
     for it in items_pool:
-        # Word EN
         wen = it.get("audio_word_en", "")
-        if wen:
-            cf = wen.replace("\\\\", "/").split("/")[-1].strip().lower()
-            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+        if wen: add_id(wen.replace("\\\\", "/").split("/")[-1].strip().lower())
             
-        # Word ZH
         wzh = it.get("audio_word_zh", "")
-        if wzh:
-            cf = wzh.replace("\\\\", "/").split("/")[-1].strip().lower()
-            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+        if wzh: add_id(wzh.replace("\\\\", "/").split("/")[-1].strip().lower())
             
-        # Sentence EN (Randomly select ONE variant)
         variants = it.get("audio_en_variants", [])
         if variants:
             chosen_v = random.choice(variants)
-            it["chosen_en_variant"] = chosen_v # save for later
-            cf = chosen_v.get("path", "").replace("\\\\", "/").split("/")[-1].strip().lower()
-            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+            it["chosen_en_variant"] = chosen_v 
+            add_id(chosen_v.get("path", "").replace("\\\\", "/").split("/")[-1].strip().lower())
             
-        # Sentence ZH
         szh = it.get("audio_zh", "")
-        if szh:
-            cf = szh.replace("\\\\", "/").split("/")[-1].strip().lower()
-            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+        if szh: add_id(szh.replace("\\\\", "/").split("/")[-1].strip().lower())
             
     if not ids_to_fetch: return
     
-    with st.spinner(f"☁️ 正在為您從雲端預載 {len(ids_to_fetch)} 個高音質語音檔 (首次載入約需 5~10 秒)..."):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-            def safe_fetch(fid):
-                try:
-                    get_gdrive_audio_base64(fid)
-                except Exception as e:
-                    print(f"Fetch error: {e}")
-            list(ex.map(safe_fetch, ids_to_fetch))
+    first_batch = ids_to_fetch[:4]
+    rest_batch = ids_to_fetch[4:]
+    
+    # 同步下載前4個音檔，確保第一句能秒播
+    if first_batch:
+        with st.spinner(f"☁️ 正在連線雲端音訊庫..."):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+                list(ex.map(download_gdrive_audio_to_static, first_batch))
+                
+    # 非同步下載剩下的音檔，不卡住前端
+    if rest_batch:
+        def bg_worker(batch):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+                list(ex.map(download_gdrive_audio_to_static, batch))
+        threading.Thread(target=bg_worker, args=(rest_batch,), daemon=True).start()
 
 def resolve_audio_source(path_str: str, audio_map: dict):
     """判斷音檔來源：回傳 (type, value)"""
@@ -329,51 +339,35 @@ with main_tab2:
             
             chosen_src = resolve_audio_source(chosen.get("path"), gdrive_audio_map) if chosen else (None, None)
             
-            en_b64 = ""
-            en_url = ""
+            en_b64, en_url = "", ""
             if chosen_src[0] == "local":
-                with open(chosen_src[1], "rb") as f:
-                    en_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif chosen_src[0] == "gdrive_id":
-                en_b64 = get_gdrive_audio_base64(chosen_src[1])
-            elif chosen_src[0] == "gdrive_url":
-                en_url = chosen_src[1]
+                with open(chosen_src[1], "rb") as f: en_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif chosen_src[0] == "gdrive_id": en_url = f"/app/static/{chosen_src[1]}.mp3"
+            elif chosen_src[0] == "gdrive_url": en_url = chosen_src[1]
                 
             # Sentence ZH
             zh_src = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
-            zh_b64 = ""
-            zh_url = ""
+            zh_b64, zh_url = "", ""
             if zh_src[0] == "local":
-                with open(zh_src[1], "rb") as f:
-                    zh_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif zh_src[0] == "gdrive_id":
-                zh_b64 = get_gdrive_audio_base64(zh_src[1])
-            elif zh_src[0] == "gdrive_url":
-                zh_url = zh_src[1]
+                with open(zh_src[1], "rb") as f: zh_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif zh_src[0] == "gdrive_id": zh_url = f"/app/static/{zh_src[1]}.mp3"
+            elif zh_src[0] == "gdrive_url": zh_url = zh_src[1]
                 
             # Word EN
             word_en_src = resolve_audio_source(item.get("audio_word_en"), gdrive_audio_map)
-            word_en_b64 = ""
-            word_en_url = ""
+            word_en_b64, word_en_url = "", ""
             if word_en_src[0] == "local":
-                with open(word_en_src[1], "rb") as f:
-                    word_en_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif word_en_src[0] == "gdrive_id":
-                word_en_b64 = get_gdrive_audio_base64(word_en_src[1])
-            elif word_en_src[0] == "gdrive_url":
-                word_en_url = word_en_src[1]
+                with open(word_en_src[1], "rb") as f: word_en_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif word_en_src[0] == "gdrive_id": word_en_url = f"/app/static/{word_en_src[1]}.mp3"
+            elif word_en_src[0] == "gdrive_url": word_en_url = word_en_src[1]
                 
             # Word ZH
             word_zh_src = resolve_audio_source(item.get("audio_word_zh"), gdrive_audio_map)
-            word_zh_b64 = ""
-            word_zh_url = ""
+            word_zh_b64, word_zh_url = "", ""
             if word_zh_src[0] == "local":
-                with open(word_zh_src[1], "rb") as f:
-                    word_zh_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif word_zh_src[0] == "gdrive_id":
-                word_zh_b64 = get_gdrive_audio_base64(word_zh_src[1])
-            elif word_zh_src[0] == "gdrive_url":
-                word_zh_url = word_zh_src[1]
+                with open(word_zh_src[1], "rb") as f: word_zh_b64 = base64.b64encode(f.read()).decode("ascii")
+            elif word_zh_src[0] == "gdrive_id": word_zh_url = f"/app/static/{word_zh_src[1]}.mp3"
+            elif word_zh_src[0] == "gdrive_url": word_zh_url = word_zh_src[1]
 
             playlist.append({
                 "word": item.get("display", item.get("word", "")),
@@ -588,8 +582,8 @@ with main_tab2:
             items_pool  = sentences_db.get(sel_theme, [])
             
             # 隨機選取30個單字例句，避免下載過多導致速率限制或當機
-            if len(items_pool) > 50:
-                items_pool = random.sample(items_pool, 50)
+            if len(items_pool) > 30:
+                items_pool = random.sample(items_pool, 30)
             else:
                 random.shuffle(items_pool)
             valid_items = [it for it in items_pool if it.get("sentence_en")]
@@ -597,7 +591,7 @@ with main_tab2:
             st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔)")
             
             # [注入預載]
-            preload_all_audio_b64(valid_items, gdrive_audio_map)
+            preload_and_bg_download(valid_items, gdrive_audio_map)
         with col_b:
             start_practice = st.button("▶ 開始練習", type="primary", key="start_sent_practice_cloud")
 
@@ -668,8 +662,9 @@ with main_tab2:
                             with open(en_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
                         elif en_audio_target[0] == "gdrive_id":
-                            b64 = get_gdrive_audio_base64(en_audio_target[1])
-                            if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
+                            download_gdrive_audio_to_static(en_audio_target[1])
+                            with open(f"static/{en_audio_target[1]}.mp3", "rb") as f:
+                                st.audio(f.read(), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無英文 MP3 音檔")
 
@@ -678,8 +673,9 @@ with main_tab2:
                             with open(zh_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
                         elif zh_audio_target[0] == "gdrive_id":
-                            b64 = get_gdrive_audio_base64(zh_audio_target[1])
-                            if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
+                            download_gdrive_audio_to_static(zh_audio_target[1])
+                            with open(f"static/{zh_audio_target[1]}.mp3", "rb") as f:
+                                st.audio(f.read(), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無中文 MP3 音檔")
 
