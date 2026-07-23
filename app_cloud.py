@@ -337,11 +337,11 @@ with main_tab2:
         <style>
           body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; background: transparent; padding: 0; margin: 0; }}
           .card {{ background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 1.8rem 2rem; margin: 0.5rem 0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }}
-          .word {{ font-size: 2.2rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.8rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
-          .word-zh {{ font-size: 1.4rem; color: #fcd34d; font-weight: 600; }}
+          .word {{ font-size: 2.6rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.8rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+          .word-zh {{ font-size: 1.8rem; color: #fcd34d; font-weight: 600; }}
           .counter {{ float: right; margin-left: auto; font-size: 1.2rem; font-weight: 500; color: #94a3b8; }}
-          .en {{ font-size: 1.75rem; font-weight: 700; color: #f8fafc; margin-bottom: 1rem; line-height: 1.8; letter-spacing: 0.3px; }}
-          .zh {{ font-size: 1.45rem; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 0.9rem; margin-top: 0.6rem; line-height: 1.6; }}
+          .en {{ font-size: 2.2rem; font-weight: 700; color: #f8fafc; margin-bottom: 1.2rem; line-height: 1.8; letter-spacing: 0.3px; }}
+          .zh {{ font-size: 1.8rem; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 1.2rem; margin-top: 0.8rem; line-height: 1.6; }}
           .btn {{ padding: 10px 24px; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.15rem; font-weight: 600; transition: all 0.2s ease; }}
           .btn-primary {{ background: #3b82f6; }}
           .btn-primary:hover {{ background: #2563eb; }}
@@ -357,6 +357,7 @@ with main_tab2:
           let step = 0;
           let currentAudio = null;
           let isPaused = false;
+          let isStarted = false;
           let currentTimer = null;
           let currentStepId = 0;
           let wakeLock = null;
@@ -572,19 +573,19 @@ with main_tab2:
                                 break
 
                     zh_audio_target = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
-                    word_zh_html = f" <span style='font-size:1.4rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
+                    word_zh_html = f" <span style='font-size:1.8rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
 
                     st.markdown(f"""
 <div style="background:rgba(15, 23, 42, 0.65);border:1px solid rgba(255,255,255,0.18);
             border-radius:18px;padding:1.8rem 2rem;margin:0.5rem 0;box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);">
-  <div style="font-size:2.2rem;font-weight:bold;color:#60a5fa;margin-bottom:0.8rem;">
+  <div style="font-size:2.6rem;font-weight:bold;color:#60a5fa;margin-bottom:0.8rem;">
     📝 {word_disp}{word_zh_html}
   </div>
-  <div style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:1rem;line-height:1.8;">
+  <div style="font-size:2.2rem;font-weight:700;color:#f8fafc;margin-bottom:1.2rem;line-height:1.8;">
     🔊 {sentence_en}
   </div>
-  <div style="font-size:1.45rem;color:#cbd5e1;border-top:1px dashed rgba(255,255,255,0.15);
-              padding-top:0.9rem;margin-top:0.6rem;line-height:1.6;">
+  <div style="font-size:1.8rem;color:#cbd5e1;border-top:1px dashed rgba(255,255,255,0.15);
+              padding-top:1.2rem;margin-top:0.8rem;line-height:1.6;">
     💬 {sentence_zh if sentence_zh else "（無中文翻譯）"}
   </div>
 </div>
@@ -985,3 +986,15 @@ with main_tab1:
                 st.session_state['exam_score'] = score_data
                 st.session_state['exam_status'] = 'COMPLETED'
                 st.rerun()
+
+# 自動心跳機制：防止 Streamlit Cloud 網頁因長時間無互動而進入睡眠 (每 10 分鐘發送一次訊號)
+components.html(
+    """
+    <script>
+    setInterval(function() {
+        window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'ping'}, '*');
+    }, 600000);
+    </script>
+    """,
+    height=0, width=0
+)
