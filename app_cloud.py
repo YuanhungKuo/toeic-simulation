@@ -390,6 +390,7 @@ with main_tab2:
         <html>
         <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
           body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; background: transparent; padding: 0; margin: 0; }}
           .card {{ background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 1.8rem 2rem; margin: 0.5rem 0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }}
