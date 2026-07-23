@@ -169,7 +169,8 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
                         data = r_sub.json()
                         for f in data.get("files", []):
                             if f.get("name", "").endswith(".mp3"):
-                                audio_map[f["name"].strip()] = f["id"]
+                                clean_f_name = f["name"].replace("\\", "/").split("/")[-1].strip().lower()
+                                audio_map[clean_f_name] = f["id"]
                         page_token = data.get("nextPageToken")
                         if not page_token:
                             break
@@ -188,12 +189,14 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
             pattern = r'\["([a-zA-Z0-9_-]{25,50})",\s*\[?"([^"]+\.mp3)"'
             matches = re.findall(pattern, resp.text)
             for file_id, filename in matches:
-                audio_map[filename.strip()] = file_id
+                clean_name = filename.replace("\\", "/").split("/")[-1].strip().lower()
+                audio_map[clean_name] = file_id
             pattern_alt = r'"([^"]+\.mp3)"[^\}]{1,120}?"([a-zA-Z0-9_-]{25,50})"'
             matches_alt = re.findall(pattern_alt, resp.text)
             for filename, file_id in matches_alt:
-                if filename.strip() not in audio_map:
-                    audio_map[filename.strip()] = file_id
+                clean_name = filename.replace("\\", "/").split("/")[-1].strip().lower()
+                if clean_name not in audio_map:
+                    audio_map[clean_name] = file_id
     except Exception as e:
         print(f"[GDrive Audio Map Error]: {e}")
     return audio_map
@@ -204,11 +207,12 @@ def resolve_audio_source(path_str: str, audio_map: dict):
         return (None, None)
     if os.path.exists(path_str):
         return ("local", path_str)
-    filename = os.path.basename(path_str)
-    if filename in audio_map:
-        file_id = audio_map[filename]
-        api_key_str = f"&key={GDRIVE_API_KEY}" if "GDRIVE_API_KEY" in globals() and GDRIVE_API_KEY else ""
-        return ("gdrive_url", f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media{api_key_str}")
+    
+    clean_filename = path_str.replace("\\", "/").split("/")[-1].strip().lower()
+    if clean_filename in audio_map:
+        file_id = audio_map[clean_filename]
+        # 使用 Google 高速媒體 CDN 直網址，100% 支援全瀏覽器免 API Key 跨域播放
+        return ("gdrive_url", f"https://lh3.googleusercontent.com/d/{file_id}")
     return (None, None)
 
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
@@ -486,10 +490,16 @@ with main_tab2:
             if (targetAudioSrc) {{
               currentAudio = new Audio(targetAudioSrc);
               currentAudio.onended = onStepEnd;
-              currentAudio.onerror = () => triggerNextStepOnce(200);
-              currentAudio.play().catch(() => triggerNextStepOnce(200));
+              currentAudio.onerror = (e) => {{
+                console.warn("Audio load error:", e);
+                triggerNextStepOnce(200);
+              }};
+              currentAudio.play().catch((err) => {{
+                console.warn("Audio play rejected:", err);
+                triggerNextStepOnce(500);
+              }});
             }} else {{
-              onStepEnd();
+              triggerNextStepOnce(0);
             }}
           }}
           
