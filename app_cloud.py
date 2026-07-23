@@ -595,8 +595,7 @@ with main_tab2:
             else:
                 random.shuffle(items_pool)
             valid_items = [it for it in items_pool if it.get("sentence_en")]
-            mp3_ready_count = sum(1 for it in items_pool if it.get("audio_en_variants") and any(os.path.exists(v["path"]) for v in it["audio_en_variants"]))
-            st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔)")
+            st.caption(f"📖 本主題共隨機抽出 {len(valid_items)} 條單字例句")
             
             # [注入預載]
             preload_and_bg_download(valid_items, gdrive_audio_map)
