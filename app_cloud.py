@@ -216,8 +216,8 @@ def resolve_audio_source(path_str: str, audio_map: dict):
     clean_filename = path_str.replace("\\", "/").split("/")[-1].strip().lower()
     if clean_filename in audio_map:
         file_id = audio_map[clean_filename]
-        # 使用 Google 高速媒體 CDN 直網址，100% 支援全瀏覽器免 API Key 跨域播放
-        return ("gdrive_url", f"https://lh3.googleusercontent.com/d/{file_id}")
+        # 使用 Google 官方 MP3 音檔下載直連網址 (傳回 HTTP 200 OK, Content-Type: audio/mpeg)
+        return ("gdrive_url", f"https://drive.google.com/uc?export=download&id={file_id}")
     return (None, None)
 
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
