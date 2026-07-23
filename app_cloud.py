@@ -342,7 +342,7 @@ with main_tab2:
             en_b64, en_url = "", ""
             if chosen_src[0] == "local":
                 with open(chosen_src[1], "rb") as f: en_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif chosen_src[0] == "gdrive_id": en_url = f"/app/static/{chosen_src[1]}.mp3"
+            elif chosen_src[0] == "gdrive_id": en_url = f"STATIC:{chosen_src[1]}.mp3"
             elif chosen_src[0] == "gdrive_url": en_url = chosen_src[1]
                 
             # Sentence ZH
@@ -350,7 +350,7 @@ with main_tab2:
             zh_b64, zh_url = "", ""
             if zh_src[0] == "local":
                 with open(zh_src[1], "rb") as f: zh_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif zh_src[0] == "gdrive_id": zh_url = f"/app/static/{zh_src[1]}.mp3"
+            elif zh_src[0] == "gdrive_id": zh_url = f"STATIC:{zh_src[1]}.mp3"
             elif zh_src[0] == "gdrive_url": zh_url = zh_src[1]
                 
             # Word EN
@@ -358,7 +358,7 @@ with main_tab2:
             word_en_b64, word_en_url = "", ""
             if word_en_src[0] == "local":
                 with open(word_en_src[1], "rb") as f: word_en_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif word_en_src[0] == "gdrive_id": word_en_url = f"/app/static/{word_en_src[1]}.mp3"
+            elif word_en_src[0] == "gdrive_id": word_en_url = f"STATIC:{word_en_src[1]}.mp3"
             elif word_en_src[0] == "gdrive_url": word_en_url = word_en_src[1]
                 
             # Word ZH
@@ -366,7 +366,7 @@ with main_tab2:
             word_zh_b64, word_zh_url = "", ""
             if word_zh_src[0] == "local":
                 with open(word_zh_src[1], "rb") as f: word_zh_b64 = base64.b64encode(f.read()).decode("ascii")
-            elif word_zh_src[0] == "gdrive_id": word_zh_url = f"/app/static/{word_zh_src[1]}.mp3"
+            elif word_zh_src[0] == "gdrive_id": word_zh_url = f"STATIC:{word_zh_src[1]}.mp3"
             elif word_zh_src[0] == "gdrive_url": word_zh_url = word_zh_src[1]
 
             playlist.append({
@@ -547,7 +547,15 @@ with main_tab2:
               triggerNextStepOnce({int(interval * 1000)});
             }};
 
-            const targetAudioSrc = b64 ? ("data:audio/mp3;base64," + b64) : audioUrl;
+            let baseUrl = "";
+          try {{ baseUrl = window.parent.location.origin + window.parent.location.pathname; }} 
+          catch (e) {{ baseUrl = document.referrer || (window.location.ancestorOrigins && window.location.ancestorOrigins.length > 0 ? window.location.ancestorOrigins[0] : window.location.origin); }}
+          if (!baseUrl.endsWith('/')) baseUrl += '/';
+          
+          let targetAudioSrc = b64 ? ("data:audio/mp3;base64," + b64) : audioUrl;
+          if (targetAudioSrc.startsWith("STATIC:")) {{
+              targetAudioSrc = baseUrl + "app/static/" + targetAudioSrc.split(":")[1];
+          }}
 
             if (targetAudioSrc) {{
               currentAudio = new Audio(targetAudioSrc);
