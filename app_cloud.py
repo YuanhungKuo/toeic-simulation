@@ -227,8 +227,9 @@ def preload_all_audio_b64(items_pool, audio_map):
         for v in it.get("audio_en_variants", []):
             cf = v.get("path", "").replace("\\", "/").split("/")[-1].strip().lower()
             if cf in audio_map: ids_to_fetch.add(audio_map[cf])
-        for v in it.get("audio_zh", []):
-            cf = v.get("path", "").replace("\\", "/").split("/")[-1].strip().lower()
+        zh_path = it.get("audio_zh", "")
+        if zh_path:
+            cf = zh_path.replace("\\", "/").split("/")[-1].strip().lower()
             if cf in audio_map: ids_to_fetch.add(audio_map[cf])
             
     if not ids_to_fetch: return
