@@ -216,8 +216,8 @@ def resolve_audio_source(path_str: str, audio_map: dict):
     clean_filename = path_str.replace("\\", "/").split("/")[-1].strip().lower()
     if clean_filename in audio_map:
         file_id = audio_map[clean_filename]
-        # 使用 Google 官方 MP3 音檔下載直連網址 (傳回 HTTP 200 OK, Content-Type: audio/mpeg)
-        return ("gdrive_url", f"https://drive.google.com/uc?export=download&id={file_id}")
+        # 使用 Google Drive API v3 直連網址 (繞過 iframe 與 303 Redirect)
+        return ("gdrive_url", f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&key={GDRIVE_API_KEY}")
     return (None, None)
 
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
