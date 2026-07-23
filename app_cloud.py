@@ -211,15 +211,13 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
 
 
 @st.cache_data(show_spinner=False, max_entries=5000)
-def get_gdrive_audio_b64(file_id):
+def get_gdrive_audio_base64(file_id):
     url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            return base64.b64encode(r.content).decode("utf-8")
-    except:
-        pass
-    return ""
+    r = requests.get(url, timeout=10)
+    if r.status_code == 200:
+        return base64.b64encode(r.content).decode("utf-8")
+    else:
+        raise Exception(f"Failed to fetch {file_id}: HTTP {r.status_code}")
 
 def preload_all_audio_b64(items_pool, audio_map):
     ids_to_fetch = set()
@@ -234,9 +232,15 @@ def preload_all_audio_b64(items_pool, audio_map):
             
     if not ids_to_fetch: return
     
-    with st.spinner(f"☁️ 正在為您從雲端預載 {len(ids_to_fetch)} 個高音質語音檔 (首次載入約需 10~15 秒)..."):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
-            list(ex.map(get_gdrive_audio_b64, ids_to_fetch))
+    with st.spinner(f"☁️ 正在為您從雲端預載 {len(ids_to_fetch)} 個高音質語音檔 (首次載入約需 5~10 秒)..."):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+            # We catch exceptions internally so one failure doesn't stop the rest
+            def safe_fetch(fid):
+                try:
+                    get_gdrive_audio_base64(fid)
+                except Exception as e:
+                    print(f"Fetch error: {e}")
+            list(ex.map(safe_fetch, ids_to_fetch))
 
 def resolve_audio_source(path_str: str, audio_map: dict):
     """判斷音檔來源：回傳 (type, value)"""
@@ -556,6 +560,12 @@ with main_tab2:
         col_a, col_b = st.columns([3, 1])
         with col_a:
             items_pool  = sentences_db.get(sel_theme, [])
+            
+            # 隨機選取30個單字例句，避免下載過多導致速率限制或當機
+            if len(items_pool) > 30:
+                items_pool = random.sample(items_pool, 30)
+            else:
+                random.shuffle(items_pool)
             valid_items = [it for it in items_pool if it.get("sentence_en")]
             mp3_ready_count = sum(1 for it in items_pool if it.get("audio_en_variants") and any(os.path.exists(v["path"]) for v in it["audio_en_variants"]))
             st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔)")
@@ -632,7 +642,7 @@ with main_tab2:
                             with open(en_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
                         elif en_audio_target[0] == "gdrive_id":
-                            b64 = get_gdrive_audio_b64(en_audio_target[1])
+                            b64 = get_gdrive_audio_base64(en_audio_target[1])
                             if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無英文 MP3 音檔")
@@ -642,7 +652,7 @@ with main_tab2:
                             with open(zh_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
                         elif zh_audio_target[0] == "gdrive_id":
-                            b64 = get_gdrive_audio_b64(zh_audio_target[1])
+                            b64 = get_gdrive_audio_base64(zh_audio_target[1])
                             if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無中文 MP3 音檔")
