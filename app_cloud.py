@@ -645,19 +645,19 @@ with main_tab2:
                                 break
 
                     zh_audio_target = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
-                    word_zh_html = f" <span style='font-size:1.8rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
+                    word_zh_html = f" <span style='font-size:clamp(1.2rem, 4.5vw, 1.8rem);color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
 
                     st.markdown(f"""
 <div style="background:rgba(15, 23, 42, 0.65);border:1px solid rgba(255,255,255,0.18);
-            border-radius:18px;padding:1.8rem 2rem;margin:0.5rem 0;box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);">
-  <div style="font-size:2.6rem;font-weight:bold;color:#60a5fa;margin-bottom:0.8rem;">
+            border-radius:18px;padding:clamp(1rem,4vw,1.8rem) clamp(1rem,5vw,2rem);margin:0.5rem 0;box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); word-break: break-word; overflow-wrap: break-word;">
+  <div style="font-size:clamp(1.6rem, 6vw, 2.6rem);font-weight:bold;color:#60a5fa;margin-bottom:0.8rem;line-height:1.4;">
     📝 {word_disp}{word_zh_html}
   </div>
-  <div style="font-size:2.2rem;font-weight:700;color:#f8fafc;margin-bottom:1.2rem;line-height:1.8;">
+  <div style="font-size:clamp(1.4rem, 5vw, 2.2rem);font-weight:700;color:#f8fafc;margin-bottom:1.2rem;line-height:1.6;">
     🔊 {sentence_en}
   </div>
-  <div style="font-size:1.8rem;color:#cbd5e1;border-top:1px dashed rgba(255,255,255,0.15);
-              padding-top:1.2rem;margin-top:0.8rem;line-height:1.6;">
+  <div style="font-size:clamp(1.2rem, 4.5vw, 1.8rem);color:#cbd5e1;border-top:1px dashed rgba(255,255,255,0.15);
+              padding-top:1.2rem;margin-top:0.8rem;line-height:1.5;">
     💬 {sentence_zh if sentence_zh else "（無中文翻譯）"}
   </div>
 </div>
