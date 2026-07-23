@@ -327,11 +327,18 @@ with main_tab2:
         <meta charset="utf-8">
         <style>
           body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; background: transparent; padding: 0; margin: 0; }}
-          .card {{ background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 1.4rem 1.6rem; margin: 0.5rem 0; }}
-          .word {{ font-size: 1.5rem; font-weight: bold; color: #60a5fa; margin-bottom: 0.5rem; }}
-          .en {{ font-size: 1.1rem; color: #e2e8f0; margin-bottom: 0.6rem; line-height: 1.7; }}
-          .zh {{ font-size: 1rem; color: #94a3b8; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 0.6rem; margin-top: 0.4rem; }}
-          .accent {{ font-size: 0.9rem; color: #cbd5e1; background: #334155; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 10px; }}
+          .card {{ background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 1.8rem 2rem; margin: 0.5rem 0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }}
+          .word {{ font-size: 2.2rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.8rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+          .word-zh {{ font-size: 1.4rem; color: #fcd34d; font-weight: 600; }}
+          .counter {{ float: right; margin-left: auto; font-size: 1.2rem; font-weight: 500; color: #94a3b8; }}
+          .en {{ font-size: 1.75rem; font-weight: 700; color: #f8fafc; margin-bottom: 1rem; line-height: 1.8; letter-spacing: 0.3px; }}
+          .zh {{ font-size: 1.45rem; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 0.9rem; margin-top: 0.6rem; line-height: 1.6; }}
+          .accent {{ font-size: 1.15rem; color: #e2e8f0; background: rgba(51, 65, 85, 0.8); padding: 0.4rem 0.8rem; border-radius: 6px; display: inline-block; margin-top: 14px; border: 1px solid rgba(255,255,255,0.1); }}
+          .btn {{ padding: 10px 24px; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.15rem; font-weight: 600; transition: all 0.2s ease; }}
+          .btn-primary {{ background: #3b82f6; }}
+          .btn-primary:hover {{ background: #2563eb; }}
+          .btn-secondary {{ background: #475569; }}
+          .btn-secondary:hover {{ background: #334155; }}
         </style>
         </head>
         <body>
@@ -342,98 +349,185 @@ with main_tab2:
           let step = 0;
           let currentAudio = null;
           let isPaused = false;
-          
-          function render() {{
-              if(idx >= playlist.length) {{
-                  document.getElementById('container').innerHTML = "<div class='card'><h3 style='color:#4ade80;'>🎉 所有例句播放完畢！</h3></div>";
-                  return;
+          let currentTimer = null;
+          let currentStepId = 0;
+          let wakeLock = null;
+
+          // 1. 螢幕防休眠保護 (Screen Wake Lock API)
+          async function requestWakeLock() {{
+            try {{
+              if ('wakeLock' in navigator) {{
+                wakeLock = await navigator.wakeLock.request('screen');
               }}
-              const item = playlist[idx];
-              document.getElementById('container').innerHTML = `
-                <div class="card">
-                  <div class="word">📝 ${{item.word}} <span style="font-size:1.1rem;color:#fcd34d;">${{item.word_zh ? ' - ' + item.word_zh : ''}}</span> <span style="float:right; font-size:1rem; font-weight:normal; color:#94a3b8;">(${{idx+1}}/${{playlist.length}})</span></div>
-                  <div class="en">🔊 ${{item.en}}</div>
-                  <div class="zh">💬 ${{item.zh || '（無中文）'}}</div>
-                  <div class="accent">🎙️ ${{item.accent}} (順序: 單英 ➔ 單中 ➔ 句英 ➔ 句中 ➔ 句英)</div>
-                  <div style="margin-top: 15px;">
-                     <button id="btn-pause" style="padding: 6px 16px; background:#3b82f6; border:none; border-radius:6px; color:white; cursor:pointer; font-size:1rem;">暫停</button>
-                     <button id="btn-next" style="padding: 6px 16px; background:#475569; border:none; border-radius:6px; color:white; cursor:pointer; margin-left: 8px; font-size:1rem;">下一句</button>
-                  </div>
-                </div>
-              `;
-              
-              document.getElementById('btn-pause').onclick = togglePause;
-              document.getElementById('btn-next').onclick = playNext;
-              
-              step = 0;
-              playStep();
+            }} catch (err) {{
+              console.log('Wake Lock error:', err);
+            }}
           }}
-          
-          function togglePause() {{
-              isPaused = !isPaused;
-              document.getElementById('btn-pause').innerText = isPaused ? "繼續播放" : "暫停";
-              if(isPaused) {{
-                 if(currentAudio) currentAudio.pause();
-                 window.speechSynthesis.pause();
-              }} else {{
-                 if(currentAudio) currentAudio.play();
-                 window.speechSynthesis.resume();
-              }}
-          }}
-          
-          function playNext() {{
-              if(currentAudio) currentAudio.pause();
+          requestWakeLock();
+          document.addEventListener('visibilitychange', () => {{
+            if (wakeLock !== null && document.visibilityState === 'visible') {{
+              requestWakeLock();
+            }}
+          }});
+
+          // 2. 雲端伺服器 Keep-Alive 防連線中斷/休眠
+          setInterval(() => {{
+            fetch(window.location.href, {{ method: 'HEAD' }}).catch(() => {{}});
+          }}, 60000);
+
+          function clearCurrentStep() {{
+            if (currentTimer) {{
+              clearTimeout(currentTimer);
+              currentTimer = null;
+            }}
+            if (currentAudio) {{
+              currentAudio.onended = null;
+              currentAudio.onerror = null;
+              currentAudio.pause();
+              currentAudio = null;
+            }}
+            if (window.speechSynthesis) {{
               window.speechSynthesis.cancel();
-              idx++;
-              render();
+            }}
           }}
-          
+
+          function render() {{
+            clearCurrentStep();
+            if(idx >= playlist.length) {{
+              document.getElementById('container').innerHTML = `
+                <div class='card' style='text-align:center; padding: 2.5rem;'>
+                  <h2 style='color:#4ade80; font-size: 2.2rem; margin: 0;'>🎉 所有例句播放完畢！</h2>
+                </div>`;
+              return;
+            }}
+            const item = playlist[idx];
+            document.getElementById('container').innerHTML = `
+              <div class="card">
+                <div class="word">
+                  📝 ${{item.word}}
+                  ${{item.word_zh ? '<span class="word-zh"> - ' + item.word_zh + '</span>' : ''}}
+                  <span class="counter">(${{idx+1}}/${{playlist.length}})</span>
+                </div>
+                <div class="en">🔊 ${{item.en}}</div>
+                <div class="zh">💬 ${{item.zh || '（無中文翻譯）'}}</div>
+                <div class="accent">
+                  🎙️ ${{item.accent}}
+                  <span style="opacity: 0.8; margin-left: 8px;">(順序: 單英 ➔ 單中 ➔ 句英 ➔ 句中 ➔ 句英)</span>
+                </div>
+                <div style="margin-top: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                   <div>
+                     <button id="btn-pause" class="btn btn-primary">${{isPaused ? "▶ 繼續播放" : "⏸ 暫停"}}</button>
+                     <button id="btn-next" class="btn btn-secondary" style="margin-left: 8px;">下一句 ➡</button>
+                   </div>
+                   <div style="font-size: 0.95rem; color: #38bdf8; display: flex; align-items: center; gap: 10px;">
+                      <span>💡 螢幕防休眠保護中</span>
+                      <span>•</span>
+                      <span>💤 連線持續保持中</span>
+                   </div>
+                </div>
+              </div>
+            `;
+            
+            document.getElementById('btn-pause').onclick = togglePause;
+            document.getElementById('btn-next').onclick = playNext;
+            
+            step = 0;
+            playStep();
+          }}
+
+          function togglePause() {{
+            isPaused = !isPaused;
+            const btn = document.getElementById('btn-pause');
+            if (btn) btn.innerText = isPaused ? "▶ 繼續播放" : "⏸ 暫停";
+            
+            if(isPaused) {{
+              if(currentTimer) {{ clearTimeout(currentTimer); currentTimer = null; }}
+              if(currentAudio) currentAudio.pause();
+              if(window.speechSynthesis) window.speechSynthesis.pause();
+            }} else {{
+              if(currentAudio) {{
+                currentAudio.play().catch(() => playStep());
+              }} else if (window.speechSynthesis && window.speechSynthesis.paused) {{
+                window.speechSynthesis.resume();
+              }} else {{
+                playStep();
+              }}
+            }}
+          }}
+
+          function playNext() {{
+            clearCurrentStep();
+            idx++;
+            render();
+          }}
+
           function speakText(text, lang, onEndCallback) {{
-              if (!text) {{ onEndCallback(); return; }}
-              const u = new SpeechSynthesisUtterance(text);
-              u.lang = lang;
-              u.onend = onEndCallback;
-              u.onerror = onEndCallback;
-              window.speechSynthesis.speak(u);
+            if (!text) {{ onEndCallback(); return; }}
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang;
+            u.onend = onEndCallback;
+            u.onerror = onEndCallback;
+            window.speechSynthesis.speak(u);
           }}
 
           function playStep() {{
-              if(isPaused) return;
-              if(currentAudio) currentAudio.pause();
-              
-              const item = playlist[idx];
-              let b64 = "";
-              let audioUrl = "";
-              let speakStr = "";
-              let speakLang = "en-US";
+            if(isPaused) return;
+            clearCurrentStep();
+            
+            const stepToken = ++currentStepId;
+            const item = playlist[idx];
+            if (!item) return;
 
-              if (step === 0) {{ b64 = item.word_en_b64; audioUrl = item.word_en_url; speakStr = item.word; speakLang = "en-US"; }}
-              else if (step === 1) {{ b64 = item.word_zh_b64; audioUrl = item.word_zh_url; speakStr = item.word_zh; speakLang = "zh-TW"; }}
-              else if (step === 2 || step === 4) {{ b64 = item.en_b64; audioUrl = item.en_url; speakStr = item.en; speakLang = "en-US"; }}
-              else if (step === 3) {{ b64 = item.zh_b64; audioUrl = item.zh_url; speakStr = item.zh; speakLang = "zh-TW"; }}
-              
-              const onStepEnd = () => {{
-                  step++;
-                  if (step < 5) {{
-                      setTimeout(playStep, {int(interval * 1000)});
-                  }} else {{
-                      setTimeout(playNext, {int(interval * 1000 * 1.5)});
-                  }}
-              }};
+            let b64 = "";
+            let audioUrl = "";
+            let speakStr = "";
+            let speakLang = "en-US";
 
-              if(b64) {{
-                  currentAudio = new Audio("data:audio/mp3;base64," + b64);
-                  currentAudio.onended = onStepEnd;
-                  currentAudio.onerror = () => speakText(speakStr, speakLang, onStepEnd);
-                  currentAudio.play().catch(e => speakText(speakStr, speakLang, onStepEnd));
-              }} else if(audioUrl) {{
-                  currentAudio = new Audio(audioUrl);
-                  currentAudio.onended = onStepEnd;
-                  currentAudio.onerror = () => speakText(speakStr, speakLang, onStepEnd);
-                  currentAudio.play().catch(e => speakText(speakStr, speakLang, onStepEnd));
-              }} else {{
-                  speakText(speakStr, speakLang, onStepEnd);
-              }}
+            if (step === 0) {{ b64 = item.word_en_b64; audioUrl = item.word_en_url; speakStr = item.word; speakLang = "en-US"; }}
+            else if (step === 1) {{ b64 = item.word_zh_b64; audioUrl = item.word_zh_url; speakStr = item.word_zh; speakLang = "zh-TW"; }}
+            else if (step === 2 || step === 4) {{ b64 = item.en_b64; audioUrl = item.en_url; speakStr = item.en; speakLang = "en-US"; }}
+            else if (step === 3) {{ b64 = item.zh_b64; audioUrl = item.zh_url; speakStr = item.zh; speakLang = "zh-TW"; }}
+
+            let hasFinished = false;
+            const triggerNextStepOnce = (delayMs) => {{
+              if (hasFinished) return;
+              hasFinished = true;
+              if (stepToken !== currentStepId || isPaused) return;
+              
+              currentTimer = setTimeout(() => {{
+                if (stepToken !== currentStepId || isPaused) return;
+                step++;
+                if (step < 5) {{
+                  playStep();
+                }} else {{
+                  playNext();
+                }}
+              }}, delayMs);
+            }};
+
+            const onStepEnd = () => {{
+              triggerNextStepOnce({int(interval * 1000)});
+            }};
+
+            const handleFallbackTTS = () => {{
+              if (stepToken !== currentStepId || isPaused || hasFinished) return;
+              speakText(speakStr, speakLang, onStepEnd);
+            }};
+
+            if(b64) {{
+              currentAudio = new Audio("data:audio/mp3;base64," + b64);
+              currentAudio.onended = onStepEnd;
+              currentAudio.onerror = handleFallbackTTS;
+              currentAudio.play().catch(handleFallbackTTS);
+            }} else if(audioUrl) {{
+              currentAudio = new Audio(audioUrl);
+              currentAudio.onended = onStepEnd;
+              currentAudio.onerror = handleFallbackTTS;
+              currentAudio.play().catch(handleFallbackTTS);
+            }} else {{
+              handleFallbackTTS();
+            }}
           }}
           
           render();
@@ -479,7 +573,7 @@ with main_tab2:
             if auto_play_mode:
                 play_interval = st.slider("播放間隔 (秒)", min_value=0.5, max_value=3.0, value=1.0, step=0.1)
                 html_code = _get_autoplay_html(s_list, start_idx=s_idx, interval=play_interval)
-                components.html(html_code, height=450)
+                components.html(html_code, height=520)
             else:
                 st.progress(s_idx / total_s, text=f"第 {s_idx+1} / {total_s} 句")
 
@@ -502,19 +596,19 @@ with main_tab2:
                                 break
 
                     zh_audio_target = resolve_audio_source(item.get("audio_zh"), gdrive_audio_map)
-                    word_zh_html = f" <span style='font-size:1.1rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
+                    word_zh_html = f" <span style='font-size:1.4rem;color:#fcd34d;'> - {word_zh}</span>" if word_zh else ""
 
                     st.markdown(f"""
-<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);
-            border-radius:16px;padding:1.4rem 1.6rem;margin:0.5rem 0;">
-  <div style="font-size:1.5rem;font-weight:bold;color:#60a5fa;margin-bottom:0.5rem;">
+<div style="background:rgba(15, 23, 42, 0.65);border:1px solid rgba(255,255,255,0.18);
+            border-radius:18px;padding:1.8rem 2rem;margin:0.5rem 0;box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);">
+  <div style="font-size:2.2rem;font-weight:bold;color:#60a5fa;margin-bottom:0.8rem;">
     📝 {word_disp}{word_zh_html}
   </div>
-  <div style="font-size:1.1rem;color:#e2e8f0;margin-bottom:0.6rem;line-height:1.7;">
+  <div style="font-size:1.75rem;font-weight:700;color:#f8fafc;margin-bottom:1rem;line-height:1.8;">
     🔊 {sentence_en}
   </div>
-  <div style="font-size:1rem;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.1);
-              padding-top:0.6rem;margin-top:0.4rem;">
+  <div style="font-size:1.45rem;color:#cbd5e1;border-top:1px dashed rgba(255,255,255,0.15);
+              padding-top:0.9rem;margin-top:0.6rem;line-height:1.6;">
     💬 {sentence_zh if sentence_zh else "（無中文翻譯）"}
   </div>
 </div>
@@ -534,10 +628,10 @@ with main_tab2:
                             safe_en = sentence_en.replace("'", "\\'").replace('"', '\\"')
                             components.html(f'''
                             <button onclick="let u=new SpeechSynthesisUtterance('{safe_en}');u.lang='en-US';window.speechSynthesis.speak(u);"
-                                    style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:0.95rem;">
+                                    style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1.1rem;">
                               🔊 朗讀英文例句 (Web TTS)
                             </button>
-                            ''', height=50)
+                            ''', height=60)
 
                     with c_zh:
                         st.caption("🇹🇼 中文翻譯語音")
@@ -551,10 +645,10 @@ with main_tab2:
                             if safe_zh:
                                 components.html(f'''
                                 <button onclick="let u=new SpeechSynthesisUtterance('{safe_zh}');u.lang='zh-TW';window.speechSynthesis.speak(u);"
-                                        style="padding:8px 16px;background:#475569;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:0.95rem;">
+                                        style="padding:10px 20px;background:#475569;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1.1rem;">
                                   🇹🇼 朗讀中文翻譯 (Web TTS)
                                 </button>
-                                ''', height=50)
+                                ''', height=60)
 
                     nav1, nav2, nav3 = st.columns([1, 1, 2])
                     with nav1:
