@@ -5,6 +5,9 @@ import asyncio
 import random
 import os
 import json
+import concurrent.futures
+import base64
+import requests
 import base64
 import db
 
@@ -206,6 +209,34 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
         print(f"[GDrive Audio Map Error]: {e}")
     return audio_map
 
+
+@st.cache_data(show_spinner=False, max_entries=5000)
+def get_gdrive_audio_b64(file_id):
+    url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            return base64.b64encode(r.content).decode("utf-8")
+    except:
+        pass
+    return ""
+
+def preload_all_audio_b64(items_pool, audio_map):
+    ids_to_fetch = set()
+    for it in items_pool:
+        for v in it.get("audio_en_variants", []):
+            cf = v.get("path", "").replace("\\", "/").split("/")[-1].strip().lower()
+            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+        for v in it.get("audio_zh", []):
+            cf = v.get("path", "").replace("\\", "/").split("/")[-1].strip().lower()
+            if cf in audio_map: ids_to_fetch.add(audio_map[cf])
+            
+    if not ids_to_fetch: return
+    
+    with st.spinner(f"☁️ 正在為您從雲端預載 {len(ids_to_fetch)} 個高音質語音檔 (首次載入約需 10~15 秒)..."):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+            list(ex.map(get_gdrive_audio_b64, ids_to_fetch))
+
 def resolve_audio_source(path_str: str, audio_map: dict):
     """判斷音檔來源：回傳 (type, value)"""
     if not path_str:
@@ -217,7 +248,7 @@ def resolve_audio_source(path_str: str, audio_map: dict):
     if clean_filename in audio_map:
         file_id = audio_map[clean_filename]
         # 使用 Google Drive 內容伺服器直連網址 (繞過 iframe redirect 與 API rate limits)
-        return ("gdrive_url", f"https://drive.usercontent.google.com/download?id={file_id}&export=download")
+        return ("gdrive_id", file_id)
     return (None, None)
 
 # ☁️ 雲端專案根目錄 (TOEIC_simulation/):
@@ -527,6 +558,9 @@ with main_tab2:
             valid_items = [it for it in items_pool if it.get("sentence_en")]
             mp3_ready_count = sum(1 for it in items_pool if it.get("audio_en_variants") and any(os.path.exists(v["path"]) for v in it["audio_en_variants"]))
             st.caption(f"📖 本主題共 {len(valid_items)} 條單字例句 ({mp3_ready_count} 條備妥實體音檔)")
+            
+            # [注入預載]
+            preload_all_audio_b64(valid_items, gdrive_audio_map)
         with col_b:
             start_practice = st.button("▶ 開始練習", type="primary", key="start_sent_practice_cloud")
 
@@ -596,8 +630,9 @@ with main_tab2:
                         if en_audio_target[0] == "local":
                             with open(en_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
-                        elif en_audio_target[0] == "gdrive_url":
-                            st.audio(en_audio_target[1], format="audio/mp3")
+                        elif en_audio_target[0] == "gdrive_id":
+                            b64 = get_gdrive_audio_b64(en_audio_target[1])
+                            if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無英文 MP3 音檔")
 
@@ -605,8 +640,9 @@ with main_tab2:
                         if zh_audio_target[0] == "local":
                             with open(zh_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
-                        elif zh_audio_target[0] == "gdrive_url":
-                            st.audio(zh_audio_target[1], format="audio/mp3")
+                        elif zh_audio_target[0] == "gdrive_id":
+                            b64 = get_gdrive_audio_b64(zh_audio_target[1])
+                            if b64: st.audio(base64.b64decode(b64), format="audio/mp3")
                         else:
                             st.info("⚠️ 該句尚無中文 MP3 音檔")
 
