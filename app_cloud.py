@@ -333,7 +333,6 @@ with main_tab2:
           .counter {{ float: right; margin-left: auto; font-size: 1.2rem; font-weight: 500; color: #94a3b8; }}
           .en {{ font-size: 1.75rem; font-weight: 700; color: #f8fafc; margin-bottom: 1rem; line-height: 1.8; letter-spacing: 0.3px; }}
           .zh {{ font-size: 1.45rem; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 0.9rem; margin-top: 0.6rem; line-height: 1.6; }}
-          .accent {{ font-size: 1.15rem; color: #e2e8f0; background: rgba(51, 65, 85, 0.8); padding: 0.4rem 0.8rem; border-radius: 6px; display: inline-block; margin-top: 14px; border: 1px solid rgba(255,255,255,0.1); }}
           .btn {{ padding: 10px 24px; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.15rem; font-weight: 600; transition: all 0.2s ease; }}
           .btn-primary {{ background: #3b82f6; }}
           .btn-primary:hover {{ background: #2563eb; }}
@@ -348,6 +347,7 @@ with main_tab2:
           let idx = {start_idx};
           let step = 0;
           let currentAudio = null;
+          let currentUtterance = null;
           let isPaused = false;
           let currentTimer = null;
           let currentStepId = 0;
@@ -370,11 +370,6 @@ with main_tab2:
             }}
           }});
 
-          // 2. 雲端伺服器 Keep-Alive 防連線中斷/休眠
-          setInterval(() => {{
-            fetch(window.location.href, {{ method: 'HEAD' }}).catch(() => {{}});
-          }}, 60000);
-
           function clearCurrentStep() {{
             if (currentTimer) {{
               clearTimeout(currentTimer);
@@ -384,9 +379,15 @@ with main_tab2:
               currentAudio.onended = null;
               currentAudio.onerror = null;
               currentAudio.pause();
+              currentAudio.src = "";
               currentAudio = null;
             }}
-            if (window.speechSynthesis) {{
+            if (currentUtterance) {{
+              currentUtterance.onend = null;
+              currentUtterance.onerror = null;
+              currentUtterance = null;
+            }}
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {{
               window.speechSynthesis.cancel();
             }}
           }}
@@ -410,10 +411,6 @@ with main_tab2:
                 </div>
                 <div class="en">🔊 ${{item.en}}</div>
                 <div class="zh">💬 ${{item.zh || '（無中文翻譯）'}}</div>
-                <div class="accent">
-                  🎙️ ${{item.accent}}
-                  <span style="opacity: 0.8; margin-left: 8px;">(順序: 單英 ➔ 單中 ➔ 句英 ➔ 句中 ➔ 句英)</span>
-                </div>
                 <div style="margin-top: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                    <div>
                      <button id="btn-pause" class="btn btn-primary">${{isPaused ? "▶ 繼續播放" : "⏸ 暫停"}}</button>
@@ -421,8 +418,6 @@ with main_tab2:
                    </div>
                    <div style="font-size: 0.95rem; color: #38bdf8; display: flex; align-items: center; gap: 10px;">
                       <span>💡 螢幕防休眠保護中</span>
-                      <span>•</span>
-                      <span>💤 連線持續保持中</span>
                    </div>
                 </div>
               </div>
@@ -464,11 +459,17 @@ with main_tab2:
           function speakText(text, lang, onEndCallback) {{
             if (!text) {{ onEndCallback(); return; }}
             if (window.speechSynthesis) window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = lang;
-            u.onend = onEndCallback;
-            u.onerror = onEndCallback;
-            window.speechSynthesis.speak(u);
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            currentUtterance.lang = lang;
+            currentUtterance.onend = () => {{
+              currentUtterance = null;
+              onEndCallback();
+            }};
+            currentUtterance.onerror = () => {{
+              currentUtterance = null;
+              onEndCallback();
+            }};
+            window.speechSynthesis.speak(currentUtterance);
           }}
 
           function playStep() {{
@@ -573,7 +574,7 @@ with main_tab2:
             if auto_play_mode:
                 play_interval = st.slider("播放間隔 (秒)", min_value=0.5, max_value=3.0, value=1.0, step=0.1)
                 html_code = _get_autoplay_html(s_list, start_idx=s_idx, interval=play_interval)
-                components.html(html_code, height=520)
+                components.html(html_code, height=480)
             else:
                 st.progress(s_idx / total_s, text=f"第 {s_idx+1} / {total_s} 句")
 
@@ -616,8 +617,6 @@ with main_tab2:
 
                     c_en, c_zh = st.columns(2)
                     with c_en:
-                        accent_label = chosen_variant["label"] if chosen_variant else ("Google Drive 原聲發音" if en_audio_target[0] == "gdrive_url" else "雲端英文發音")
-                        st.caption(f"🎙️ {accent_label}")
                         if en_audio_target[0] == "local":
                             with open(en_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
@@ -634,7 +633,6 @@ with main_tab2:
                             ''', height=60)
 
                     with c_zh:
-                        st.caption("🇹🇼 中文翻譯語音")
                         if zh_audio_target[0] == "local":
                             with open(zh_audio_target[1], "rb") as _af:
                                 st.audio(_af.read(), format="audio/mp3")
