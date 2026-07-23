@@ -136,7 +136,12 @@ def load_gdrive_audio_map(folder_url: str = "", api_key: str = ""):
             with open(target_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data:
-                    return data
+                    clean_map = {}
+                    for fn, fid in data.items():
+                        c_name = fn.replace("\\", "/").split("/")[-1].strip().lower()
+                        clean_map[c_name] = fid
+                    print(f"[Audio Map] Successfully loaded local audio map with {len(clean_map)} normalized entries!")
+                    return clean_map
         except Exception as e:
             print(f"[Local Audio Map Load Error]: {e}")
 
