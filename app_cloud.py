@@ -623,7 +623,7 @@ with main_tab2:
             if auto_play_mode:
                 play_interval = st.slider("播放間隔 (秒)", min_value=0.5, max_value=3.0, value=1.0, step=0.1)
                 html_code = _get_autoplay_html(s_list, start_idx=s_idx, interval=play_interval)
-                components.html(html_code, height=480)
+                components.html(html_code, height=800, scrolling=True)
             else:
                 st.progress(s_idx / total_s, text=f"第 {s_idx+1} / {total_s} 句")
 
