@@ -392,13 +392,14 @@ with main_tab2:
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
-          body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; background: transparent; padding: 0; margin: 0; }}
-          .card {{ background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 1.8rem 2rem; margin: 0.5rem 0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }}
-          .word {{ font-size: 2.6rem; font-weight: 800; color: #60a5fa; margin-bottom: 0.8rem; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
-          .word-zh {{ font-size: 1.8rem; color: #fcd34d; font-weight: 600; }}
-          .counter {{ float: right; margin-left: auto; font-size: 1.2rem; font-weight: 500; color: #94a3b8; }}
-          .en {{ font-size: 2.2rem; font-weight: 700; color: #f8fafc; margin-bottom: 1.2rem; line-height: 1.8; letter-spacing: 0.3px; }}
-          .zh {{ font-size: 1.8rem; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 1.2rem; margin-top: 0.8rem; line-height: 1.6; }}
+          html {{ font-size: 16px; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }}
+          body {{ -webkit-text-size-adjust: 100%; text-size-adjust: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: white; background: transparent; padding: 0; margin: 0; }}
+          .card {{ background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(255,255,255,0.18); border-radius: 18px; padding: 16px 20px; margin: 0.5rem 0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); backdrop-filter: blur(10px); word-break: break-word; overflow-wrap: break-word; }}
+          .word {{ font-size: 26px; font-weight: 800; color: #60a5fa; margin-bottom: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; line-height: 1.4; }}
+          .word-zh {{ font-size: 18px; color: #fcd34d; font-weight: 600; }}
+          .counter {{ float: right; margin-left: auto; font-size: 18px; font-weight: 500; color: #94a3b8; }}
+          .en {{ font-size: 22px; font-weight: 700; color: #f8fafc; margin-bottom: 16px; line-height: 1.6; letter-spacing: 0.3px; word-break: break-word; overflow-wrap: break-word; }}
+          .zh {{ font-size: 18px; font-weight: 500; color: #cbd5e1; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 16px; margin-top: 12px; line-height: 1.5; word-break: break-word; overflow-wrap: break-word; }}
           .btn {{ padding: 10px 24px; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.15rem; font-weight: 600; transition: all 0.2s ease; }}
           .btn-primary {{ background: #3b82f6; }}
           .btn-primary:hover {{ background: #2563eb; }}
